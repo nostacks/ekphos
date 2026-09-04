@@ -20,6 +20,7 @@ impl App {
         self.poll_index_build();
         let graph_changed = self.poll_graph_workers();
         let highlight_changed = self.poll_highlight_worker();
+        let tasks_changed = self.poll_task_scan();
         let cleared = std::mem::take(&mut self.state.needs_full_clear);
         let toast_changed = self.tick_toast();
         let redraw = base_changed
@@ -32,6 +33,7 @@ impl App {
             || (content_search && !self.is_content_search_in_progress())
             || graph_changed
             || highlight_changed
+            || tasks_changed
             || cleared
             || toast_changed;
         let highlight_work = self.has_highlight_work();
@@ -45,6 +47,7 @@ impl App {
             || self.is_content_search_in_progress()
             || self.search.indexing_in_progress
             || self.graph_has_background_work()
+            || self.tasks.loading
             || highlight_work
             || self.state.toast.is_some();
         let poll_timeout = if highlight_work || base_work {

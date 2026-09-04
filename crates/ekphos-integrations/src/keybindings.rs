@@ -20,6 +20,7 @@ pub enum AppCommand {
     OpenQuickSearch,
     FindInBuffer,
     OpenGraph,
+    OpenTaskView,
     OpenThemeSelector,
     OpenJournal,
     HistoryBack,
@@ -54,7 +55,7 @@ pub enum AppCommand {
 }
 
 impl AppCommand {
-    pub const ALL: [Self; 45] = [
+    pub const ALL: [Self; 46] = [
         Self::Quit,
         Self::FocusNext,
         Self::FocusPrevious,
@@ -69,6 +70,7 @@ impl AppCommand {
         Self::OpenQuickSearch,
         Self::FindInBuffer,
         Self::OpenGraph,
+        Self::OpenTaskView,
         Self::OpenThemeSelector,
         Self::OpenJournal,
         Self::HistoryBack,
@@ -118,6 +120,7 @@ impl AppCommand {
             Self::OpenQuickSearch => "open_quick_search",
             Self::FindInBuffer => "find_in_buffer",
             Self::OpenGraph => "open_graph",
+            Self::OpenTaskView => "open_task_view",
             Self::OpenThemeSelector => "open_theme_selector",
             Self::OpenJournal => "open_journal",
             Self::HistoryBack => "history_back",
@@ -172,6 +175,7 @@ impl AppCommand {
             Self::OpenQuickSearch => &["ctrl+k"],
             Self::FindInBuffer => &["ctrl+f"],
             Self::OpenGraph => &["ctrl+g"],
+            Self::OpenTaskView => &["ctrl+y"],
             Self::OpenThemeSelector => &["ctrl+t"],
             Self::OpenJournal => &["t"],
             Self::HistoryBack => &["-"],

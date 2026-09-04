@@ -398,6 +398,7 @@ pub(super) fn execute_app_command(app: &mut App, command: AppCommand) -> bool {
             app.build_graph();
             app.state.dialog = DialogState::GraphView;
         }
+        AppCommand::OpenTaskView => app.open_task_view(),
         AppCommand::ToggleZen => app.toggle_zen_mode(),
         AppCommand::ToggleFrontmatter => app.toggle_frontmatter_hidden(),
         AppCommand::ToggleFold => app.toggle_current_heading_fold(),

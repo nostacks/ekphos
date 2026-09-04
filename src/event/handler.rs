@@ -2,9 +2,9 @@ use std::io;
 
 use crossterm::cursor::SetCursorStyle;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{backend::CrosstermBackend, layout::Rect, Terminal};
 
-use crate::app::{App, BlockInsertMode, BlockInsertState, ContextMenuItem, ContextMenuState, DeleteType, DialogState, Focus, LinkInfo, Mode, SearchPickerState, SidebarItemKind, WikiAutocompleteMode, WikiAutocompleteState};
+use crate::app::{App, BlockInsertMode, BlockInsertState, ContextMenuItem, ContextMenuState, DeleteType, DialogState, Focus, LinkInfo, Mode, SearchPickerState, SidebarItemKind, TaskFilterKind, WikiAutocompleteMode, WikiAutocompleteState};
 use crate::clipboard::{self, ClipboardContent};
 use crate::config::{Config, EditingMode};
 use crate::keybindings::{AppCommand, KeyResolution};

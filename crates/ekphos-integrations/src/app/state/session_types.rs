@@ -94,6 +94,7 @@ pub enum DialogState {
     UnsavedChanges,
     CreateWikiNote,
     GraphView,
+    TaskView,
     ThemeSelector,
 }
 

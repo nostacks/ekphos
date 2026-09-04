@@ -1,5 +1,5 @@
 use super::*;
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthStr;
 
 struct ParsedDocument {
     items: Vec<ContentItem>,
@@ -117,12 +117,8 @@ fn parse_document(document: &DocumentSnapshot, frontmatter: Option<&CompactFront
             line_index += 1;
             continue;
         }
-        let trimmed = line.trim_start();
-        if trimmed.starts_with("- [ ] ") || trimmed.starts_with("- [x] ") || trimmed.starts_with("- [X] ") {
-            let checked = trimmed.starts_with("- [x] ") || trimmed.starts_with("- [X] ");
-            let leading_bytes = line.len().saturating_sub(trimmed.len());
-            let indent: usize = line[..leading_bytes].chars().map(|character| if character == '\t' { 4 } else { character.width().unwrap_or(0) }).sum();
-            parsed.push_item(ContentItem::TaskItem { text: range_for_slice(document, line_index, &trimmed[6..]), checked, source_line: line_index as u32, indent: u16::try_from(indent).unwrap_or(u16::MAX) }, document, wiki_exists);
+        if let Some(task) = ekphos_tasks::parse_task_line(line) {
+            parsed.push_item(ContentItem::TaskItem { text: range_for_slice(document, line_index, task.body), checked: task.checked, source_line: line_index as u32, indent: task.indent }, document, wiki_exists);
             line_index += 1;
             continue;
         }
@@ -1011,13 +1007,11 @@ impl App {
             return;
         };
         let line = document.slice(line_range);
-        let marker = if checked { line.find("- [x]").or_else(|| line.find("- [X]")) } else { line.find("- [ ]") };
-        let Some(marker) = marker else {
+        let Some(updated) = ekphos_tasks::set_checked(line, !checked, self.dependencies.clock.today()) else {
             return;
         };
-        let checkbox = line_range.start() + marker + 3;
         let mut body = document.body().to_owned();
-        body.replace_range(checkbox..checkbox + 1, if checked { " " } else { "x" });
+        body.replace_range(line_range.start()..line_range.end(), &updated);
         if self.persist_active_body(body) {
             self.update_content_items();
             self.document.content_cursor = saved_cursor.min(self.document.content_items.len().saturating_sub(1));

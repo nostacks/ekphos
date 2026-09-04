@@ -375,7 +375,7 @@ pub(super) fn wrap_line_for_cursor<'a>(first_line_spans: Vec<Span<'a>>, availabl
             while !remaining.is_empty() {
                 let line_max = if is_first_line { first_line_available } else { continuation_available };
                 let available_in_line = line_max.saturating_sub(current_line_width);
-                if available_in_line == 0 {
+                if available_in_line == 0 && current_line_width > 0 {
                     if is_first_line {
                         let mut line_spans = prefix_spans.clone();
                         line_spans.append(&mut current_line_spans);

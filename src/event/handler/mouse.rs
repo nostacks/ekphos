@@ -63,6 +63,10 @@ pub(super) fn handle_mouse_event(app: &mut App, mouse: crossterm::event::MouseEv
         handle_graph_view_mouse(app, mouse);
         return;
     }
+    if app.state.dialog == DialogState::TaskView {
+        handle_task_view_mouse(app, mouse);
+        return;
+    }
     if app.editor.mode == Mode::Edit {
         handle_edit_mode_mouse(app, mouse);
         return;
@@ -549,4 +553,31 @@ pub(super) fn execute_context_menu_action(app: &mut App, action: ContextMenuItem
         }
     }
     app.update_editor_block();
+}
+
+fn handle_task_view_mouse(app: &mut App, mouse: crossterm::event::MouseEvent) {
+    match mouse.kind {
+        MouseEventKind::Down(MouseButton::Left) => {
+            if let Some(&(kind, _)) = app.tasks.filter_hits.iter().find(|(_, rect)| contains(*rect, mouse.column, mouse.row)) {
+                app.tasks.text_input_active = false;
+                app.cycle_task_filter(kind);
+                return;
+            }
+            let Some(hit) = app.tasks.row_hits.iter().copied().find(|hit| contains(hit.row, mouse.column, mouse.row)) else {
+                return;
+            };
+            app.tasks.text_input_active = false;
+            app.task_select(hit.position);
+            if contains(hit.checkbox, mouse.column, mouse.row) {
+                app.toggle_task_from_view();
+            }
+        }
+        MouseEventKind::ScrollUp if contains(app.tasks.list_area, mouse.column, mouse.row) => app.task_move_selection(-1),
+        MouseEventKind::ScrollDown if contains(app.tasks.list_area, mouse.column, mouse.row) => app.task_move_selection(1),
+        _ => {}
+    }
+}
+
+fn contains(rect: Rect, column: u16, row: u16) -> bool {
+    column >= rect.x && column < rect.x.saturating_add(rect.width) && row >= rect.y && row < rect.y.saturating_add(rect.height)
 }

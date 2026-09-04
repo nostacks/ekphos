@@ -105,6 +105,11 @@ pub(super) fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -
             handle_graph_view_dialog(app, key);
             return Ok(false);
         }
+        DialogState::TaskView => {
+            app.state.keymap.reset_pending();
+            handle_task_view_dialog(app, key);
+            return Ok(false);
+        }
         DialogState::ThemeSelector => {
             app.state.keymap.reset_pending();
             handle_theme_selector_dialog(app, key);
@@ -613,6 +618,61 @@ pub(super) fn handle_welcome_dialog(app: &mut App, key: crossterm::event::KeyEve
     }
 }
 
+pub(super) fn handle_task_view_dialog(app: &mut App, key: crossterm::event::KeyEvent) {
+    if app.tasks.text_input_active {
+        match key.code {
+            KeyCode::Esc | KeyCode::Enter => app.tasks.text_input_active = false,
+            KeyCode::Backspace => {
+                app.tasks.query.pop();
+                app.refilter_tasks();
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.tasks.query.clear();
+                app.refilter_tasks();
+            }
+            KeyCode::Char(ch) if !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER) => {
+                app.tasks.query.push(ch);
+                app.refilter_tasks();
+            }
+            _ => {}
+        }
+        return;
+    }
+    if key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER) {
+        return;
+    }
+    match key.code {
+        KeyCode::Esc => {
+            if app.tasks.query.is_empty() {
+                app.close_task_view();
+            } else {
+                app.tasks.query.clear();
+                app.refilter_tasks();
+            }
+        }
+        KeyCode::Char('q') => app.close_task_view(),
+        KeyCode::Down | KeyCode::Char('j') => app.task_move_selection(1),
+        KeyCode::Up | KeyCode::Char('k') => app.task_move_selection(-1),
+        KeyCode::PageDown | KeyCode::Char('J') => app.task_move_selection(page_step(app)),
+        KeyCode::PageUp | KeyCode::Char('K') => app.task_move_selection(-page_step(app)),
+        KeyCode::Home | KeyCode::Char('g') => app.task_select_first(),
+        KeyCode::End | KeyCode::Char('G') => app.task_select_last(),
+        KeyCode::Char(' ') | KeyCode::Char('x') => app.toggle_task_from_view(),
+        KeyCode::Enter => app.open_task_source(),
+        KeyCode::Char('f') => app.cycle_task_filter(TaskFilterKind::Status),
+        KeyCode::Char('d') => app.cycle_task_filter(TaskFilterKind::Due),
+        KeyCode::Char('p') => app.cycle_task_filter(TaskFilterKind::Priority),
+        KeyCode::Char('/') => app.cycle_task_filter(TaskFilterKind::Search),
+        KeyCode::Char('c') => app.clear_task_filters(),
+        KeyCode::Char('r') => app.mark_tasks_dirty(),
+        _ => {}
+    }
+}
+
+fn page_step(app: &App) -> isize {
+    isize::try_from(app.tasks.list_area.height).unwrap_or(10).max(1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -634,6 +694,102 @@ mod tests {
         assert_eq!(apply_text_dialog_key(&mut input, &mut error, key(KeyCode::Enter), true), DialogCommand::Submit);
         assert_eq!(apply_text_dialog_key(&mut input, &mut error, key(KeyCode::Esc), true), DialogCommand::Cancel);
         assert_eq!(apply_text_dialog_key(&mut input, &mut error, key(KeyCode::Left), true), DialogCommand::Ignore);
+    }
+
+    fn task_view_app() -> (App, std::path::PathBuf) {
+        use crate::app::AppDependencies;
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT_ROOT: AtomicU64 = AtomicU64::new(0);
+        let id = NEXT_ROOT.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!("ekphos-tasks-{}-{id}", std::process::id()));
+        let vault = root.join("vault");
+        std::fs::create_dir_all(&vault).unwrap();
+        std::fs::write(vault.join("fixture.md"), "# Fixture\n\n- [ ] alpha 📅 2026-06-01 ⏫\n").unwrap();
+        std::fs::write(vault.join("other.md"), "# Other\n\n- [ ] beta\n- [x] gamma ✅ 2026-01-01\n").unwrap();
+        let config = Config { general: crate::config::GeneralConfig { welcome_shown: false, check_updates: false, ..Default::default() }, ..Default::default() };
+        let dependencies = AppDependencies::headless(root.join("config"), root.join("cache"));
+        let mut app = App::new_injected(config, vault.clone(), None, dependencies);
+        app.state.show_welcome = false;
+        app.state.dialog = DialogState::None;
+        app.open_task_view();
+        let started = std::time::Instant::now();
+        while (app.tasks_loading() || !app.tasks.scanned_once()) && started.elapsed() < std::time::Duration::from_secs(5) {
+            app.poll_background();
+            std::thread::yield_now();
+        }
+        (app, vault)
+    }
+
+    fn visible_texts(app: &App) -> Vec<String> {
+        app.tasks.visible.iter().map(|&index| app.tasks.tasks[index].text.clone()).collect()
+    }
+
+    #[test]
+    fn task_view_keys_filter_search_and_close() {
+        let (mut app, _vault) = task_view_app();
+        assert_eq!(visible_texts(&app), ["alpha", "beta"]);
+        handle_task_view_dialog(&mut app, key(KeyCode::Char('f')));
+        assert_eq!(app.tasks.status, crate::app::TaskStatusFilter::Done);
+        assert_eq!(visible_texts(&app), ["gamma"]);
+        handle_task_view_dialog(&mut app, key(KeyCode::Char('f')));
+        assert_eq!(app.tasks.status, crate::app::TaskStatusFilter::All);
+        handle_task_view_dialog(&mut app, key(KeyCode::Char('p')));
+        assert_eq!(visible_texts(&app), ["alpha"]);
+        handle_task_view_dialog(&mut app, key(KeyCode::Char('c')));
+        assert_eq!(visible_texts(&app), ["alpha", "beta"]);
+        assert!(!app.tasks.has_active_filters());
+
+        handle_task_view_dialog(&mut app, key(KeyCode::Char('/')));
+        assert!(app.tasks.text_input_active);
+        for ch in "be".chars() {
+            handle_task_view_dialog(&mut app, key(KeyCode::Char(ch)));
+        }
+        assert_eq!(visible_texts(&app), ["beta"]);
+        handle_task_view_dialog(&mut app, key(KeyCode::Char('j')));
+        assert_eq!(app.tasks.query, "bej", "typing must go to the query, not navigation");
+        handle_task_view_dialog(&mut app, key(KeyCode::Backspace));
+        handle_task_view_dialog(&mut app, key(KeyCode::Enter));
+        assert!(!app.tasks.text_input_active);
+        assert_eq!(visible_texts(&app), ["beta"]);
+        handle_task_view_dialog(&mut app, key(KeyCode::Esc));
+        assert!(app.tasks.query.is_empty());
+        assert_eq!(app.state.dialog, DialogState::TaskView);
+        handle_task_view_dialog(&mut app, key(KeyCode::Esc));
+        assert_eq!(app.state.dialog, DialogState::None);
+    }
+
+    #[test]
+    fn task_view_navigation_and_toggle_write_through_to_disk() {
+        let (mut app, vault) = task_view_app();
+        handle_task_view_dialog(&mut app, key(KeyCode::Char('G')));
+        assert_eq!(app.tasks.selected, 1);
+        handle_task_view_dialog(&mut app, key(KeyCode::Char('g')));
+        assert_eq!(app.tasks.selected, 0);
+        handle_task_view_dialog(&mut app, key(KeyCode::Down));
+        assert_eq!(app.tasks.selected_task().map(|task| task.text.as_str()), Some("beta"));
+        handle_task_view_dialog(&mut app, key(KeyCode::Down));
+        assert_eq!(app.tasks.selected, 1, "selection must clamp at the last row");
+        let today = app.today();
+        handle_task_view_dialog(&mut app, key(KeyCode::Char(' ')));
+        let body = std::fs::read_to_string(vault.join("other.md")).unwrap();
+        assert_eq!(body, format!("# Other\n\n- [x] beta ✅ {today}\n- [x] gamma ✅ 2026-01-01\n"));
+        let started = std::time::Instant::now();
+        while app.tasks.visible.len() != 1 && started.elapsed() < std::time::Duration::from_secs(5) {
+            app.poll_background();
+            std::thread::yield_now();
+        }
+        assert_eq!(visible_texts(&app), ["alpha"]);
+    }
+
+    #[test]
+    fn task_view_toggle_refuses_stale_lines() {
+        let (mut app, vault) = task_view_app();
+        handle_task_view_dialog(&mut app, key(KeyCode::Char('G')));
+        let edited = "# Other\n\nintro\n- [ ] beta\n";
+        std::fs::write(vault.join("other.md"), edited).unwrap();
+        handle_task_view_dialog(&mut app, key(KeyCode::Char(' ')));
+        assert_eq!(std::fs::read_to_string(vault.join("other.md")).unwrap(), edited, "a moved task must not rewrite the wrong line");
+        assert!(app.state.toast.is_some());
     }
 
     #[test]

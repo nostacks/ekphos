@@ -21,6 +21,7 @@ members = [
     "crates/ekphos-graph",
     "crates/ekphos-integrations",
     "crates/ekphos-search",
+    "crates/ekphos-tasks",
     "crates/ekphos-vault",
     "crates/ekphos-vim",
 ]
@@ -42,6 +43,7 @@ ekphos-editor = { version = "=0.25.10", path = "crates/ekphos-editor" }
 ekphos-graph = { version = "=0.25.10", path = "crates/ekphos-graph" }
 ekphos-integrations = { version = "=0.25.10", path = "crates/ekphos-integrations" }
 ekphos-search = { version = "=0.25.10", path = "crates/ekphos-search" }
+ekphos-tasks = { version = "=0.25.10", path = "crates/ekphos-tasks" }
 ekphos-vault = { version = "=0.25.10", path = "crates/ekphos-vault" }
 ekphos-vim = { version = "=0.25.10", path = "crates/ekphos-vim" }
 ratatui = "=0.30.1"

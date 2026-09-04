@@ -818,6 +818,7 @@ dependencies = [
  "ekphos-editor",
  "ekphos-graph",
  "ekphos-search",
+ "ekphos-tasks",
  "ekphos-vault",
  "ekphos-vim",
  "htmd",
@@ -847,6 +848,14 @@ dependencies = [
  "ekphos-core",
  "memmap2",
  "serde",
+]
+
+[[package]]
+name = "ekphos-tasks"
+version = "0.25.10"
+dependencies = [
+ "chrono",
+ "ekphos-core",
 ]
 
 [[package]]

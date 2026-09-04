@@ -12,6 +12,7 @@ pub struct App {
     pub editor: EditorSession,
     pub search: SearchState,
     pub graph: GraphState,
+    pub tasks: TaskViewState,
     pub workers: WorkerSet,
     pub images: ImageService,
     pub state: UiState,

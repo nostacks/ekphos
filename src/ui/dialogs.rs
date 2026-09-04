@@ -380,6 +380,7 @@ pub fn render_help_dialog(f: &mut Frame, app: &App) -> usize {
         Line::from(vec![Span::styled(keys(AppCommand::OpenQuickSearch), key_style), Span::styled("Fuzzy search notes", desc_style)]),
         Line::from(vec![Span::styled(keys(AppCommand::OpenThemeSelector), key_style), Span::styled("Select theme", desc_style)]),
         Line::from(vec![Span::styled(keys(AppCommand::OpenGraph), key_style), Span::styled("Open graph view", desc_style)]),
+        Line::from(vec![Span::styled(keys(AppCommand::OpenTaskView), key_style), Span::styled("Open task view", desc_style)]),
         Line::from(vec![Span::styled(keys(AppCommand::OpenJournal), key_style), Span::styled("Open today's journal", desc_style)]),
         Line::from(vec![Span::styled(keys(AppCommand::ToggleZen), key_style), Span::styled("Toggle zen mode", desc_style)]),
         Line::from(vec![Span::styled(keys(AppCommand::ToggleFrontmatter), key_style), Span::styled("Toggle frontmatter", desc_style)]),

@@ -411,6 +411,19 @@ mod tests {
     }
 
     #[test]
+    fn wrap_line_for_cursor_terminates_when_prefix_fills_the_width() {
+        let theme = Theme::default();
+        let spans = vec![plain("▶ "), Span::styled("[ ] ", Style::default()), Span::styled("only", Style::default())];
+        let lines = wrap_line_for_cursor(spans, 3, &theme);
+        assert!(lines.len() <= 8, "expected a handful of rows, got {}", lines.len());
+        let joined: String = lines.iter().flat_map(|line| line.spans.iter()).map(|span| span.content.as_ref()).collect();
+        let compact: String = joined.split_whitespace().collect();
+        assert!(compact.contains("only"), "wrap lost the text: {joined:?}");
+        let spans = vec![plain("▶ "), Span::styled("longword", Style::default())];
+        assert!(wrap_line_for_cursor(spans, 2, &theme).len() <= 9);
+    }
+
+    #[test]
     fn code_line_wrap_preserves_cjk_tail() {
         let theme = Theme::default();
         let line = cjk_aligned_comment_line();

@@ -15,6 +15,7 @@ ekphos-canvas.workspace = true
 ekphos-editor.workspace = true
 ekphos-graph.workspace = true
 ekphos-search.workspace = true
+ekphos-tasks.workspace = true
 ekphos-vault.workspace = true
 ekphos-vim.workspace = true
 ratatui.workspace = true

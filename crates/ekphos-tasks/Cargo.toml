@@ -1,0 +1,13 @@
+[package]
+name = "ekphos-tasks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Markdown task parsing and aggregation for Ekphos"
+
+[dependencies]
+chrono.workspace = true
+ekphos-core.workspace = true

@@ -10,6 +10,7 @@ mod outline;
 mod search_dialog;
 mod sidebar;
 mod status_bar;
+mod task_view;
 mod theme_picker;
 mod toast;
 mod wiki_autocomplete;
@@ -118,6 +119,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
             }
             graph_view::render_graph_view(f, app);
         }
+        DialogState::TaskView => task_view::render_task_view(f, app),
         DialogState::ThemeSelector => {
             if let Some(picker) = app.state.theme_picker.as_ref() {
                 let scroll = theme_picker::render_theme_picker(f, theme_picker::ThemePickerView { theme: &app.state.theme, picker });
@@ -250,6 +252,116 @@ mod tests {
         let mut fixture = GoldenApp::new();
         fixture.app.enter_edit_mode();
         assert_eq!(fixture.hash(80, 24), 15_822_003_958_405_314_542);
+    }
+
+    fn task_view_fixture(content: &str) -> GoldenApp {
+        let mut fixture = GoldenApp::with_content(content);
+        if let Some(note) = fixture.app.vault.notes.first_mut() {
+            note.file_path = Some(fixture.root.join("vault").join("fixture.md"));
+        }
+        fixture.app.open_task_view();
+        let started = Instant::now();
+        while (fixture.app.tasks_loading() || !fixture.app.tasks.scanned_once()) && started.elapsed() < Duration::from_secs(5) {
+            fixture.app.poll_background();
+            std::thread::yield_now();
+        }
+        fixture
+    }
+
+    fn draw(fixture: &mut GoldenApp, width: u16, height: u16) -> ratatui::buffer::Buffer {
+        let backend = TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal.draw(|frame| render(frame, &mut fixture.app)).unwrap();
+        terminal.backend().buffer().clone()
+    }
+
+    fn row_text(buffer: &ratatui::buffer::Buffer, y: u16) -> String {
+        (0..buffer.area.width).map(|x| buffer[(x, y)].symbol().to_string()).collect()
+    }
+
+    fn column_of(buffer: &ratatui::buffer::Buffer, y: u16, needle: &str) -> Option<u16> {
+        (0..buffer.area.width).find(|&x| buffer[(x, y)].symbol() == needle)
+    }
+
+    #[test]
+    fn task_view_aggregates_tasks_with_metadata() {
+        let mut fixture = task_view_fixture("- [ ] alpha 📅 2026-06-01 ⏫\nplain line\n- [x] beta ✅ 2026-01-01\n");
+        assert_eq!(fixture.app.tasks.tasks.len(), 2);
+        assert_eq!(fixture.app.tasks.visible.len(), 1);
+        fixture.app.tasks.status = crate::app::TaskStatusFilter::All;
+        fixture.app.refilter_tasks();
+        let buffer = draw(&mut fixture, 80, 24);
+        let content: String = (0..24).map(|y| row_text(&buffer, y)).collect();
+        assert!(content.contains("TASKS"), "{content}");
+        assert!(content.contains("1 open · 2 total"), "{content}");
+        assert!(content.contains("[ ] alpha"), "{content}");
+        assert!(content.contains("[x] beta"), "{content}");
+        assert!(content.contains("⏫"), "{content}");
+        assert!(content.contains("2026-06-01"), "{content}");
+        assert!(content.contains("✅"), "{content}");
+        assert!(!content.contains("alpha 📅"), "metadata tokens must not repeat in the text column: {content}");
+        for y in 5..22 {
+            let row = row_text(&buffer, y);
+            assert_eq!(row.trim_matches('│').trim(), "", "the editor must not bleed through the task view at row {y}: {row}");
+        }
+        assert_eq!(fixture.app.tasks.row_hits.len(), 2);
+        assert_eq!(fixture.app.tasks.filter_hits.len(), 4);
+    }
+
+    #[test]
+    fn task_view_columns_align_across_glyph_widths_and_selection_fills_the_row() {
+        let mut fixture = task_view_fixture("- [ ] wide 📅 2026-06-01 ⏫\n- [ ] plain\n- [ ] 日本語のタスク 🔼\n");
+        fixture.app.tasks.selected = 1;
+        let buffer = draw(&mut fixture, 80, 24);
+        let rows: Vec<u16> = (0..24).filter(|&y| row_text(&buffer, y).contains("[ ]")).collect();
+        assert_eq!(rows.len(), 3, "{}", (0..24).map(|y| row_text(&buffer, y)).collect::<String>());
+        let note_columns: Vec<Option<u16>> = rows.iter().map(|&y| column_of(&buffer, y, "f")).collect();
+        assert!(note_columns.iter().all(|column| column.is_some() && *column == note_columns[0]), "note column drifted: {note_columns:?}");
+        let selected_row = rows[1];
+        let selection = fixture.app.state.theme.selection;
+        let mut x = 1;
+        while x < buffer.area.width - 1 {
+            let cell = &buffer[(x, selected_row)];
+            assert_eq!(cell.bg, selection, "selection background missing at column {x}");
+            x += cell.symbol().width().max(1) as u16;
+        }
+        assert_ne!(buffer[(2, rows[0])].bg, selection);
+    }
+
+    #[test]
+    fn task_view_scrolls_to_the_selection_and_drops_columns_when_narrow() {
+        let content: String = (0..40).map(|index| format!("- [ ] filler task number {index} 📅 2026-06-01\n")).collect();
+        let mut fixture = task_view_fixture(&content);
+        assert_eq!(fixture.app.tasks.visible.len(), 40);
+        fixture.app.task_select_last();
+        let buffer = draw(&mut fixture, 100, 14);
+        let content: String = (0..14).map(|y| row_text(&buffer, y)).collect();
+        assert!(content.contains("filler task number 39"), "{content}");
+        assert!(content.contains("40/40"), "{content}");
+        assert!(content.contains("┃"), "scrollbar thumb missing: {content}");
+        assert_eq!(fixture.app.tasks.row_hits.len(), 9);
+        assert_eq!(fixture.app.tasks.scroll_offset, 31);
+        let narrow = draw(&mut fixture, 30, 6);
+        let narrow_content: String = (0..6).map(|y| row_text(&narrow, y)).collect();
+        assert!(narrow_content.contains("[ ] filler"), "{narrow_content}");
+        assert!(!narrow_content.contains("2026-06-01"), "date column should be dropped when narrow: {narrow_content}");
+        assert!(!narrow_content.contains("p prior"), "partial chips should be hidden: {narrow_content}");
+    }
+
+    #[test]
+    fn task_view_survives_tiny_geometry_and_shows_empty_states() {
+        let mut fixture = task_view_fixture("- [ ] only\n");
+        for (width, height) in [(1, 1), (2, 2), (5, 3), (6, 3), (12, 4), (20, 3)] {
+            let _ = draw(&mut fixture, width, height);
+        }
+        fixture.app.tasks.query = "zzz".into();
+        fixture.app.refilter_tasks();
+        let buffer = draw(&mut fixture, 60, 10);
+        let content: String = (0..10).map(|y| row_text(&buffer, y)).collect();
+        assert!(content.contains("No tasks match the current filters"), "{content}");
+        assert!(content.contains("clear the filters"), "{content}");
+        assert!(fixture.app.tasks.row_hits.is_empty());
+        assert!(content.contains("0/0"), "{content}");
     }
 
     #[test]

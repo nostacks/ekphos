@@ -236,6 +236,7 @@ impl AppBuilder {
             editor: EditorSession::new(editor, config.floating_cursor),
             search: SearchState::new(),
             graph: GraphState::default(),
+            tasks: TaskViewState::default(),
             workers: WorkerSet::new(index_receiver),
             images: ImageService::new(ImageWorkerService::new(get_image_cache_dir(&dependencies.cache_dir), Arc::clone(&dependencies.network_images)), Picker::from_query_stdio().ok()),
             memory_reclaim_pending: false,
@@ -290,6 +291,8 @@ pub use memory::*;
 mod search_state;
 mod services;
 mod structured;
+mod tasks_state;
+pub use tasks_state::*;
 mod ui_state;
 mod vault;
 fn get_image_cache_dir(cache_dir: &std::path::Path) -> PathBuf {
