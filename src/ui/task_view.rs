@@ -2,11 +2,12 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
+use super::panel::full_view_block;
 use crate::app::{App, DueState, Priority, TaskFilterKind, TaskItem, TaskRowHit};
 use crate::config::Theme;
 
@@ -72,7 +73,7 @@ pub fn render_task_view(f: &mut Frame, app: &mut App) {
     let area = f.area();
     let theme = app.state.theme.clone();
     f.render_widget(Clear, area);
-    let block = Block::default().title(title_line(app, &theme)).borders(Borders::ALL).border_style(Style::default().fg(theme.dialog.border)).style(Style::default().bg(theme.dialog.background));
+    let block = full_view_block(app.state.config.style, &theme, title_line(app, &theme));
     let inner = block.inner(area);
     f.render_widget(block, area);
     app.tasks.row_hits.clear();

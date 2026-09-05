@@ -222,7 +222,7 @@ impl App {
         let (inner_x, inner_y, inner_width, inner_height) = if self.state.zen_mode {
             (self.editor.editor_area.x, self.editor.editor_area.y, self.editor.editor_area.width, self.editor.editor_area.height)
         } else {
-            (self.editor.editor_area.x + 1, self.editor.editor_area.y + 1, self.editor.editor_area.width.saturating_sub(2), self.editor.editor_area.height.saturating_sub(2))
+            (self.editor.editor_area.x + 1, self.editor.editor_area.y + 1, self.editor.editor_area.width.saturating_sub(2), self.editor.editor_area.height.saturating_sub(self.state.config.style.vertical_inset()))
         };
         if mouse_x < inner_x || mouse_x >= inner_x + inner_width || mouse_y < inner_y || mouse_y >= inner_y + inner_height {
             return None;
@@ -239,7 +239,7 @@ impl App {
     /// Returns scroll direction: -1 for up, 1 for down, 0 for no scroll.
     pub fn get_auto_scroll_direction(&self, mouse_y: u16) -> i8 {
         const SCROLL_THRESHOLD: u16 = 2;
-        let (inner_y, inner_height) = if self.state.zen_mode { (self.editor.editor_area.y, self.editor.editor_area.height) } else { (self.editor.editor_area.y.saturating_add(1), self.editor.editor_area.height.saturating_sub(2)) };
+        let (inner_y, inner_height) = if self.state.zen_mode { (self.editor.editor_area.y, self.editor.editor_area.height) } else { (self.editor.editor_area.y.saturating_add(1), self.editor.editor_area.height.saturating_sub(self.state.config.style.vertical_inset())) };
         if inner_height == 0 {
             return 0;
         }

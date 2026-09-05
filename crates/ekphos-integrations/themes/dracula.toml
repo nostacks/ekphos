@@ -92,3 +92,9 @@ blockquote = "#6272a4"
 list_marker = "#ff79c6"
 bold = "#ffb86c"
 italic = "#8be9fd"
+
+# Flat style surfaces
+[ui.flat]
+surface = "#313442"
+surface_raised = "#3b3e4f"
+content_bg = "#282a36"

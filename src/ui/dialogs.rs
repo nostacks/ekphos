@@ -378,7 +378,7 @@ pub fn render_help_dialog(f: &mut Frame, app: &App) -> usize {
         Line::from(vec![Span::styled(keys(AppCommand::GrowPanel), key_style), Span::styled("Grow focused side panel", desc_style)]),
         Line::from(vec![Span::styled(keys(AppCommand::FindInBuffer), key_style), Span::styled("Find in buffer", desc_style)]),
         Line::from(vec![Span::styled(keys(AppCommand::OpenQuickSearch), key_style), Span::styled("Fuzzy search notes", desc_style)]),
-        Line::from(vec![Span::styled(keys(AppCommand::OpenThemeSelector), key_style), Span::styled("Select theme", desc_style)]),
+        Line::from(vec![Span::styled(keys(AppCommand::OpenThemeSelector), key_style), Span::styled("Select theme and style", desc_style)]),
         Line::from(vec![Span::styled(keys(AppCommand::OpenGraph), key_style), Span::styled("Open graph view", desc_style)]),
         Line::from(vec![Span::styled(keys(AppCommand::OpenTaskView), key_style), Span::styled("Open task view", desc_style)]),
         Line::from(vec![Span::styled(keys(AppCommand::OpenJournal), key_style), Span::styled("Open today's journal", desc_style)]),

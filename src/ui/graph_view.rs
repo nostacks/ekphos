@@ -12,6 +12,7 @@ use ratatui::{
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
+use super::panel::{full_view_block, full_view_inner};
 use crate::app::App;
 use crate::config::Theme;
 use ekphos_graph::{fit_zoom_for_bounds, GraphIndexNode, GraphMode, GraphNode, GraphRelation};
@@ -185,7 +186,7 @@ pub struct GraphRenderAction {
 }
 
 pub fn prepare_graph_view(app: &App, area: Rect) -> GraphRenderAction {
-    let inner = Rect::new(area.x.saturating_add(1), area.y.saturating_add(1), area.width.saturating_sub(2), area.height.saturating_sub(2));
+    let inner = full_view_inner(app.state.config.style, area);
     if inner.width < 4 || inner.height < 3 {
         return GraphRenderAction { area: Rect::default(), view_width: 0.0, view_height: 0.0, camera: None, clear_dirty: false, clear_needs_center: false };
     }
@@ -212,7 +213,7 @@ pub fn render_graph_view(frame: &mut Frame, app: &App) {
     let theme = app.state.theme.clone();
     frame.render_widget(Clear, area);
     let title = graph_title(app);
-    let block = Block::default().title(Line::from(title)).borders(Borders::ALL).border_style(Style::default().fg(theme.dialog.border)).style(Style::default().bg(theme.dialog.background));
+    let block = full_view_block(app.state.config.style, &theme, Line::from(title));
     let inner = block.inner(area);
     frame.render_widget(block, area);
     if inner.width < 4 || inner.height < 3 {

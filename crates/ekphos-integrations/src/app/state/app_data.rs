@@ -714,6 +714,7 @@ pub struct EditorSession {
     pub mouse_drag_start: Option<(u16, u16)>,
     pub last_mouse_y: u16,
     pub editor_area: Rect,
+    pub block_accent: Color,
     pub context_menu_state: ContextMenuState,
     pub wiki_autocomplete: WikiAutocompleteState,
     pub pending_wiki_target: Option<String>,
@@ -723,7 +724,7 @@ pub struct EditorSession {
 }
 
 impl EditorSession {
-    pub(crate) fn new(inner: Editor, floating_cursor_mode: bool) -> Self {
+    pub(crate) fn new(inner: Editor, floating_cursor_mode: bool, block_accent: Color) -> Self {
         Self {
             inner,
             mode: Mode::Normal,
@@ -742,6 +743,7 @@ impl EditorSession {
             mouse_drag_start: None,
             last_mouse_y: 0,
             editor_area: Rect::default(),
+            block_accent,
             context_menu_state: ContextMenuState::None,
             wiki_autocomplete: WikiAutocompleteState::None,
             pending_wiki_target: None,

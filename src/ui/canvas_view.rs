@@ -12,6 +12,7 @@ use ratatui::{
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
+use super::panel::{panel_surface, render_panel, PanelFrame, SurfaceKind};
 use crate::app::{App, CanvasEditorLayout, CanvasInteraction, CanvasNodeEditor, CanvasResizeHandle, Focus};
 use crate::config::Theme;
 
@@ -164,11 +165,17 @@ pub fn render_canvas_view(frame: &mut Frame, app: &mut App, area: Rect) {
     app.structured.canvas.resize_rects.clear();
     let theme = app.state.theme.clone();
     let focused = app.state.focus == Focus::Content;
-    let border = if focused { theme.primary } else { theme.border };
     let note_title = app.current_note().map_or("Canvas", |note| note.title.as_str());
-    let block = Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(border)).style(Style::default().bg(theme.background)).title(format!(" {note_title}.canvas "));
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
+    let inner = if app.state.config.style.is_flat() {
+        let panel = PanelFrame { style: app.state.config.style, theme: &theme, title: format!(" {note_title}.canvas "), focused, accent: theme.primary, surface: panel_surface(&app.state.config, &theme, SurfaceKind::Content) };
+        render_panel(frame, &panel, area)
+    } else {
+        let border = if focused { theme.primary } else { theme.border };
+        let block = Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(border)).style(Style::default().bg(theme.background)).title(format!(" {note_title}.canvas "));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+        inner
+    };
     if inner.width < 12 || inner.height < 5 {
         frame.render_widget(Paragraph::new("Terminal too small for this Canvas").style(Style::default().fg(theme.muted).bg(theme.background)), inner);
         return;

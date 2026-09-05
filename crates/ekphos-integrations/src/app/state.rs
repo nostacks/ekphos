@@ -10,16 +10,17 @@ use ekphos_core::NoteId;
 use image::DynamicImage;
 use ratatui::{
     layout::{Constraint, Rect, Size},
-    style::Style,
-    widgets::{Block, Borders, ListState},
+    style::{Color, Style},
+    widgets::{Block, ListState},
 };
 use ratatui_image::{picker::Picker, sliced::SlicedProtocol};
 
-use crate::config::{Config, EditingMode, Theme, ThemeEntry, ThemeFile};
+use crate::config::{Config, EditingMode, StyleMode, Theme, ThemeEntry, ThemeFile};
 use crate::highlight::Highlighter;
 use crate::highlight_worker::{HighlightColors, HighlightResult, HighlightWorker};
 use crate::image_service::ImageService as ImageWorkerService;
 use crate::keybindings::{AppCommand, KeybindingFallback, KeybindingWarning, Keymap};
+use crate::panel::{panel_surface, PanelFrame, SurfaceKind};
 use crate::syntax_service::SyntaxService;
 use ekphos_editor::{CursorShape, Editor, Position};
 use ekphos_graph as graph;
@@ -193,7 +194,7 @@ impl AppBuilder {
             }
             EditingMode::Vim => (theme.primary, " NORMAL | Ctrl+S: Save, Esc: Exit ".to_string()),
         };
-        editor.set_block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(editor_color)).title(editor_title));
+        editor.set_block(PanelFrame { style: config.style, theme: &theme, title: editor_title, focused: true, accent: editor_color, surface: panel_surface(&config, &theme, SurfaceKind::Content) }.block());
         editor.set_cursor_shape(if config.editor.mode == EditingMode::Standard { CursorShape::Bar } else { CursorShape::Block });
         editor.set_cursor_line_style(Style::default());
         editor.set_selection_style(Style::default().fg(theme.foreground).bg(theme.selection));
@@ -233,7 +234,7 @@ impl AppBuilder {
             vault: VaultState::new(ekphos_vault::Vault::default(), list_state),
             document: DocumentState::new(frontmatter_hidden),
             structured: StructuredDocumentState::new(dependencies.clock.now()),
-            editor: EditorSession::new(editor, config.floating_cursor),
+            editor: EditorSession::new(editor, config.floating_cursor, editor_color),
             search: SearchState::new(),
             graph: GraphState::default(),
             tasks: TaskViewState::default(),

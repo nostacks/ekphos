@@ -6,8 +6,9 @@ use ratatui::{
     Frame,
 };
 
+use super::panel::{panel_surface, render_accent_bar, SurfaceKind};
 use crate::app::{BlockInsertMode, EditorSession};
-use crate::config::{EditingMode, Theme};
+use crate::config::{Config, EditingMode, StyleMode, Theme};
 use crate::keybindings::{AppCommand, Keymap};
 use ekphos_vim::VimMode;
 
@@ -20,13 +21,14 @@ pub struct EditorLayout {
 
 pub struct EditorView<'a> {
     pub theme: &'a Theme,
+    pub config: &'a Config,
     pub editor: &'a EditorSession,
     pub editing_mode: EditingMode,
     pub keymap: &'a Keymap,
     pub zen_mode: bool,
 }
 
-pub fn editor_layout(zen_mode: bool, area: Rect) -> EditorLayout {
+pub fn editor_layout(zen_mode: bool, style: StyleMode, area: Rect) -> EditorLayout {
     const ZEN_MAX_WIDTH: u16 = 95;
     let (editor_area, inner_width, inner_height) = if zen_mode {
         let content_width = area.width.min(ZEN_MAX_WIDTH);
@@ -42,7 +44,7 @@ pub fn editor_layout(zen_mode: bool, area: Rect) -> EditorLayout {
         (editor_area, inner_width, inner_height)
     } else {
         let inner_width = area.width.saturating_sub(2) as usize;
-        let inner_height = area.height.saturating_sub(2) as usize;
+        let inner_height = area.height.saturating_sub(style.vertical_inset()) as usize;
         (area, inner_width, inner_height)
     };
     EditorLayout { area: editor_area, inner_width, inner_height }
@@ -54,6 +56,9 @@ pub fn render_editor(f: &mut Frame, view: EditorView<'_>, layout: EditorLayout) 
         render_zen_status_line(f, &view, Rect { x: editor_area.x, y: editor_area.y.saturating_sub(2), width: editor_area.width, height: 1 });
     }
     f.render_widget(&**view.editor, editor_area);
+    if !view.zen_mode && view.config.style.is_flat() {
+        render_accent_bar(f, editor_area, view.editor.block_accent, panel_surface(view.config, view.theme, SurfaceKind::Content));
+    }
     if view.editor.uses_native_cursor() {
         let (cursor_row, _cursor_col) = view.editor.cursor();
         let scroll_top = view.editor.editor_scroll_top;

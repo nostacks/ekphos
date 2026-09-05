@@ -7,13 +7,7 @@ pub fn render_content(f: &mut Frame, app: &mut App, area: Rect) {
     let skip_images = app.state.dialog != DialogState::None || app.state.show_welcome;
     let theme_snapshot = app.state.theme.clone();
     let theme = &theme_snapshot;
-    let border_style = if app.editor.floating_cursor_mode {
-        Style::default().fg(theme.warning)
-    } else if is_focused {
-        Style::default().fg(theme.primary)
-    } else {
-        Style::default().fg(theme.border)
-    };
+    let accent = if app.editor.floating_cursor_mode { theme.warning } else { theme.primary };
     let floating_indicator = if app.editor.floating_cursor_mode { " [FLOAT] " } else { "" };
     let title = app.current_note().map(|n| format!(" {}{} ", n.title, floating_indicator)).unwrap_or_else(|| format!(" Content{} ", floating_indicator));
 
@@ -28,10 +22,8 @@ pub fn render_content(f: &mut Frame, app: &mut App, area: Rect) {
         let y_offset = if app.editor.floating_cursor_mode { 2 } else { 1 };
         Rect { x: area.x + x_offset, y: area.y + y_offset, width: content_width, height: area.height.saturating_sub(y_offset) }
     } else {
-        let block = Block::default().title(title).borders(Borders::ALL).border_style(border_style);
-        let inner = block.inner(area);
-        f.render_widget(block, area);
-        inner
+        let frame = PanelFrame { style: app.state.config.style, theme, title, focused: is_focused || app.editor.floating_cursor_mode, accent, surface: panel_surface(&app.state.config, theme, SurfaceKind::Content) };
+        render_panel(f, &frame, area)
     };
     app.editor.editor_area = if app.state.zen_mode { inner_area } else { area };
     app.state.inline_image_rects.clear();

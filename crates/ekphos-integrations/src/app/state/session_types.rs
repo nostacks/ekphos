@@ -106,8 +106,10 @@ pub struct ThemePicker {
     pub themes: Vec<ThemeEntry>,
     pub selected: usize,
     pub scroll_offset: usize,
+    pub style: StyleMode,
     /// Theme name active when the picker was opened, restored on Esc.
     pub original_theme_name: String,
+    pub original_style: StyleMode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]

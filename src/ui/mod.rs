@@ -7,6 +7,7 @@ mod editor;
 mod file_picker;
 mod graph_view;
 mod outline;
+mod panel;
 mod search_dialog;
 mod sidebar;
 mod status_bar;
@@ -66,7 +67,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
         .split(f.area());
     let main_constraints = main_layout_constraints(app.state.zen_mode, app.state.sidebar_collapsed, app.state.outline_collapsed, app.state.config.effective_sidebar_width_percent(), app.state.config.effective_outline_width_percent());
     let chunks = Layout::default().direction(Direction::Horizontal).constraints(main_constraints).split(vertical_chunks[0]);
-    let sidebar_area = render_sidebar(f, SidebarView { theme: &app.state.theme, vault: &app.vault, search: &app.search, focus: app.state.focus, mode: app.editor.mode, minimized: app.is_sidebar_minimized() }, chunks[0]);
+    let sidebar_area = render_sidebar(f, SidebarView { theme: &app.state.theme, config: &app.state.config, vault: &app.vault, search: &app.search, focus: app.state.focus, mode: app.editor.mode, minimized: app.is_sidebar_minimized() }, chunks[0]);
     match app.editor.mode {
         Mode::Normal => match app.active_document_kind() {
             Some(ekphos_vault::VaultFileKind::Base) => base_view::render_base_view(f, app, chunks[1]),
@@ -74,14 +75,14 @@ pub fn render(f: &mut Frame, app: &mut App) {
             Some(ekphos_vault::VaultFileKind::Markdown) | None => render_content(f, app, chunks[1]),
         },
         Mode::Edit => {
-            let layout = editor::editor_layout(app.state.zen_mode, chunks[1]);
+            let layout = editor::editor_layout(app.state.zen_mode, app.state.config.style, chunks[1]);
             app.editor.editor_area = layout.area;
             app.editor.set_view_size(layout.inner_width, layout.inner_height);
             app.update_editor_scroll(layout.inner_height);
-            editor::render_editor(f, editor::EditorView { theme: &app.state.theme, editor: &app.editor, editing_mode: app.state.config.editor.mode, keymap: &app.state.keymap, zen_mode: app.state.zen_mode }, layout);
+            editor::render_editor(f, editor::EditorView { theme: &app.state.theme, config: &app.state.config, editor: &app.editor, editing_mode: app.state.config.editor.mode, keymap: &app.state.keymap, zen_mode: app.state.zen_mode }, layout);
         }
     }
-    let outline = render_outline(f, OutlineView { theme: &app.state.theme, document: &app.document, snapshot: app.document(), editor: &app.editor, focus: app.state.focus, minimized: app.is_outline_minimized() }, chunks[2]);
+    let outline = render_outline(f, OutlineView { theme: &app.state.theme, config: &app.state.config, document: &app.document, snapshot: app.document(), editor: &app.editor, focus: app.state.focus, minimized: app.is_outline_minimized() }, chunks[2]);
     app.state.sidebar_area = sidebar_area;
     app.state.outline_area = outline.area;
     app.document.outline_state = outline.state;
@@ -254,6 +255,86 @@ mod tests {
         assert_eq!(fixture.hash(80, 24), 15_822_003_958_405_314_542);
     }
 
+    fn flat_fixture() -> GoldenApp {
+        let mut fixture = GoldenApp::new();
+        fixture.app.state.config.style = crate::config::StyleMode::Flat;
+        fixture.app.update_editor_block();
+        fixture
+    }
+
+    #[test]
+    fn theme_selector_previews_confirms_and_cancels_style() {
+        let mut fixture = GoldenApp::new();
+        fixture.app.open_theme_selector();
+        assert_eq!(fixture.app.state.dialog, DialogState::ThemeSelector);
+        fixture.app.theme_selector_toggle_style();
+        assert_eq!(fixture.app.state.config.style, crate::config::StyleMode::Flat);
+        fixture.app.cancel_theme_selection();
+        assert_eq!(fixture.app.state.config.style, crate::config::StyleMode::Outlined);
+        assert_eq!(fixture.app.state.dialog, DialogState::None);
+        fixture.app.open_theme_selector();
+        fixture.app.theme_selector_toggle_style();
+        fixture.app.confirm_theme_selection();
+        assert_eq!(fixture.app.state.config.style, crate::config::StyleMode::Flat);
+        let saved = fs::read_to_string(fixture.root.join("config").join("config.toml")).unwrap();
+        assert!(saved.contains("style = \"flat\""), "{saved}");
+    }
+
+    #[test]
+    fn flat_style_applies_to_full_screen_views() {
+        let mut fixture = flat_fixture();
+        fixture.app.state.dialog = DialogState::TaskView;
+        let buffer = draw(&mut fixture, 80, 20);
+        let row0: String = (0..80).map(|x| buffer[(x, 0)].symbol().to_string()).collect();
+        assert!(!row0.contains('┌'), "{row0}");
+        assert!(row0.contains("TASKS"), "{row0}");
+        assert_eq!(fixture.app.tasks.list_area.x, 1);
+        assert_eq!(fixture.app.tasks.list_area.y, 3);
+        fixture.app.build_graph();
+        fixture.app.state.dialog = DialogState::GraphView;
+        let buffer = draw(&mut fixture, 80, 20);
+        let row0: String = (0..80).map(|x| buffer[(x, 0)].symbol().to_string()).collect();
+        assert!(!row0.contains('┌'), "{row0}");
+        assert!(row0.contains("GRAPH"), "{row0}");
+        let last: String = (0..80).map(|x| buffer[(x, 19)].symbol().to_string()).collect();
+        assert!(!last.contains('└'), "{last}");
+        assert_eq!(fixture.app.graph.graph_view.graph_area.y, 2);
+        assert_eq!(fixture.app.graph.graph_view.graph_area.height, 20 - 1 - 1 - 2);
+    }
+
+    #[test]
+    fn golden_main_view_flat_100x30() {
+        let mut fixture = flat_fixture();
+        assert_eq!(fixture.hash(100, 30), 9_558_837_033_891_136_885);
+    }
+
+    #[test]
+    fn golden_edit_view_flat_80x24() {
+        let mut fixture = flat_fixture();
+        fixture.app.enter_edit_mode();
+        assert_eq!(fixture.hash(80, 24), 4_518_287_944_179_168_489);
+    }
+
+    #[test]
+    fn flat_style_drops_borders_and_marks_focus_with_a_bar() {
+        let mut fixture = flat_fixture();
+        let buffer = draw(&mut fixture, 100, 30);
+        let sidebar = fixture.app.state.sidebar_area;
+        let content = fixture.app.state.content_area;
+        let row0: String = (0..100).map(|x| buffer[(x, 0)].symbol().to_string()).collect();
+        assert!(!row0.contains('┌') && !row0.contains('─'), "{row0}");
+        assert_eq!(buffer[(sidebar.x, sidebar.y)].symbol(), "▌");
+        assert_eq!(buffer[(sidebar.x, sidebar.y + sidebar.height - 1)].symbol(), "▌");
+        assert_ne!(buffer[(content.x.saturating_sub(1), content.y)].symbol(), "▌");
+        assert_eq!(content.y, sidebar.y + 1);
+        fixture.app.enter_edit_mode();
+        let buffer = draw(&mut fixture, 100, 30);
+        let editor = fixture.app.editor.editor_area;
+        assert_eq!(buffer[(editor.x, editor.y)].symbol(), "▌");
+        assert_eq!(buffer[(editor.x, editor.bottom() - 1)].symbol(), "▌");
+        assert_ne!(buffer[(sidebar.x, sidebar.y)].symbol(), "▌");
+    }
+
     fn task_view_fixture(content: &str) -> GoldenApp {
         let mut fixture = GoldenApp::with_content(content);
         if let Some(note) = fixture.app.vault.notes.first_mut() {
@@ -377,7 +458,7 @@ mod tests {
                 let layout = editor::EditorLayout { area, inner_width: 0, inner_height: 0 };
                 fixture.app.editor.editor_area = area;
                 fixture.app.editor.set_view_size(0, 0);
-                editor::render_editor(frame, editor::EditorView { theme: &fixture.app.state.theme, editor: &fixture.app.editor, editing_mode: fixture.app.state.config.editor.mode, keymap: &fixture.app.state.keymap, zen_mode: false }, layout);
+                editor::render_editor(frame, editor::EditorView { theme: &fixture.app.state.theme, config: &fixture.app.state.config, editor: &fixture.app.editor, editing_mode: fixture.app.state.config.editor.mode, keymap: &fixture.app.state.keymap, zen_mode: false }, layout);
             })
             .unwrap();
 

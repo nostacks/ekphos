@@ -59,6 +59,9 @@ pub(super) fn handle_theme_selector_dialog(app: &mut App, key: crossterm::event:
         KeyCode::Char('p') if key.modifiers == KeyModifiers::CONTROL => {
             app.theme_selector_select_prev();
         }
+        KeyCode::Left | KeyCode::Right | KeyCode::Tab | KeyCode::Char('h') | KeyCode::Char('l') => {
+            app.theme_selector_toggle_style();
+        }
         _ => {}
     }
 }

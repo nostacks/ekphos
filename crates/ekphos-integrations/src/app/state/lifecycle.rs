@@ -113,8 +113,27 @@ impl App {
             return;
         }
         let selected = themes.iter().position(|t| t.name == self.state.config.theme).unwrap_or(0);
-        self.state.theme_picker = Some(ThemePicker { themes, selected, scroll_offset: 0, original_theme_name: self.state.config.theme.clone() });
+        let style = self.state.config.style;
+        self.state.theme_picker = Some(ThemePicker { themes, selected, scroll_offset: 0, style, original_theme_name: self.state.config.theme.clone(), original_style: style });
         self.state.dialog = DialogState::ThemeSelector;
+    }
+
+    fn apply_style_mode(&mut self, style: StyleMode) {
+        if self.state.config.style == style {
+            return;
+        }
+        self.state.config.style = style;
+        self.update_editor_block();
+        self.state.needs_full_clear = true;
+    }
+
+    pub fn theme_selector_toggle_style(&mut self) {
+        let Some(picker) = self.state.theme_picker.as_mut() else {
+            return;
+        };
+        picker.style = picker.style.toggled();
+        let style = picker.style;
+        self.apply_style_mode(style);
     }
     pub(super) fn preview_selected_theme(&mut self) {
         if let Some(name) = self.state.theme_picker.as_ref().and_then(|picker| picker.themes.get(picker.selected)).map(|entry| entry.name.clone()) {
@@ -148,21 +167,26 @@ impl App {
 
     /// Persist the highlighted theme to config and close the modal.
     pub fn confirm_theme_selection(&mut self) {
-        if let Some(entry) = self.state.theme_picker.take().and_then(|picker| picker.themes.get(picker.selected).cloned()) {
-            let name = entry.name.clone();
-            self.state.config.theme = name.clone();
+        if let Some(picker) = self.state.theme_picker.take() {
+            self.apply_style_mode(picker.style);
+            if let Some(entry) = picker.themes.get(picker.selected) {
+                let name = entry.name.clone();
+                self.state.config.theme = name.clone();
+                self.apply_theme_named(&name);
+                self.state.status_message = Some(format!("Theme: {} · Style: {}", name, picker.style.display_name()));
+            }
             let _ = self.state.config.save_to_dir(&self.dependencies.config_dir);
-            self.apply_theme_named(&name);
-            self.state.status_message = Some(format!("Theme: {}", name));
         }
         self.state.dialog = DialogState::None;
     }
 
     /// Restore the theme that was active when the modal opened and close it.
     pub fn cancel_theme_selection(&mut self) {
-        let original = self.state.theme_picker.take().map(|picker| picker.original_theme_name).unwrap_or_default();
-        if !original.is_empty() {
-            self.apply_theme_named(&original);
+        if let Some(picker) = self.state.theme_picker.take() {
+            self.apply_style_mode(picker.original_style);
+            if !picker.original_theme_name.is_empty() {
+                self.apply_theme_named(&picker.original_theme_name);
+            }
         }
         self.state.dialog = DialogState::None;
     }

@@ -114,13 +114,19 @@ impl App {
         }
     }
 
+    fn editor_panel_block(&self, accent: Color, title: String) -> Block<'static> {
+        PanelFrame { style: self.state.config.style, theme: &self.state.theme, title, focused: true, accent, surface: panel_surface(&self.state.config, &self.state.theme, SurfaceKind::Content) }.block()
+    }
+
     pub fn update_editor_block(&mut self) {
         if self.state.config.editor.mode == EditingMode::Standard {
+            self.editor.block_accent = self.state.theme.success;
             if self.state.zen_mode {
                 self.editor.set_block(Block::default());
             } else {
                 let toggle_key = self.state.keymap.binding_label(AppCommand::ToggleEditorMode);
-                self.editor.set_block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(self.state.theme.success)).title(format!(" STANDARD | Ctrl+S Save · Esc Preview · Ctrl+F Find · {toggle_key} Vim · F1 Help ")));
+                let block = self.editor_panel_block(self.state.theme.success, format!(" STANDARD | Ctrl+S Save · Esc Preview · Ctrl+F Find · {toggle_key} Vim · F1 Help "));
+                self.editor.set_block(block);
             }
             self.editor.set_selection_style(Style::default().fg(self.state.theme.foreground).bg(self.state.theme.selection));
             self.editor.set_cursor_line_style(Style::default());
@@ -169,10 +175,12 @@ impl App {
                 _ => "Ctrl+S: Save, Esc: Exit",
             }
         };
+        self.editor.block_accent = color;
         if self.state.zen_mode {
             self.editor.set_block(Block::default());
         } else {
-            self.editor.set_block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(color)).title(format!(" {}{} | {} ", mode_str, pending_str, hint)));
+            let block = self.editor_panel_block(color, format!(" {}{} | {} ", mode_str, pending_str, hint));
+            self.editor.set_block(block);
         }
         self.editor.set_selection_style(Style::default().fg(self.state.theme.foreground).bg(self.state.theme.selection));
         self.editor.set_cursor_line_style(Style::default());

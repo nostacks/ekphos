@@ -68,6 +68,8 @@ pub struct GeneralConfig {
     pub transparent_bg: bool,
     #[serde(default = "default_floating_cursor")]
     pub floating_cursor: bool,
+    #[serde(default)]
+    pub style: StyleMode,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EditorConfig {
@@ -108,6 +110,45 @@ impl EditingMode {
             Self::Standard => Self::Vim,
             Self::Vim => Self::Standard,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum StyleMode {
+    #[default]
+    Outlined,
+    Flat,
+}
+
+impl StyleMode {
+    pub const fn display_name(self) -> &'static str {
+        match self {
+            Self::Outlined => "Outlined",
+            Self::Flat => "Flat",
+        }
+    }
+
+    pub const fn toggled(self) -> Self {
+        match self {
+            Self::Outlined => Self::Flat,
+            Self::Flat => Self::Outlined,
+        }
+    }
+
+    pub const fn is_flat(self) -> bool {
+        matches!(self, Self::Flat)
+    }
+
+    pub const fn bottom_inset(self) -> u16 {
+        match self {
+            Self::Outlined => 1,
+            Self::Flat => 0,
+        }
+    }
+
+    pub const fn vertical_inset(self) -> u16 {
+        1 + self.bottom_inset()
     }
 }
 
@@ -217,6 +258,7 @@ impl Default for GeneralConfig {
             check_updates: default_check_updates(),
             transparent_bg: default_transparent_bg(),
             floating_cursor: default_floating_cursor(),
+            style: StyleMode::default(),
         }
     }
 }
@@ -419,6 +461,17 @@ pub struct UiColorsFile {
     pub search: SearchColors,
     #[serde(default)]
     pub editor: EditorColors,
+    #[serde(default)]
+    pub flat: FlatColors,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct FlatColors {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface_raised: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_bg: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatusbarColors {
@@ -787,6 +840,13 @@ pub struct Theme {
     pub outline: OutlineTheme,
     pub search: SearchTheme,
     pub editor: EditorTheme,
+    pub flat: FlatTheme,
+}
+#[derive(Debug, Clone)]
+pub struct FlatTheme {
+    pub surface: Color,
+    pub surface_raised: Color,
+    pub content_bg: Color,
 }
 #[derive(Debug, Clone)]
 pub struct StatusbarTheme {
@@ -863,9 +923,11 @@ pub struct EditorTheme {
 }
 impl Theme {
     pub fn from_file(tf: &ThemeFile) -> Self {
+        let background_secondary = parse_hex_color(&tf.base.background_secondary);
+        let flat_surface = tf.ui.flat.surface.as_deref().map_or(background_secondary, parse_hex_color);
         Self {
             background: parse_hex_color(&tf.base.background),
-            background_secondary: parse_hex_color(&tf.base.background_secondary),
+            background_secondary,
             foreground: parse_hex_color(&tf.base.foreground),
             muted: parse_hex_color(&tf.base.muted),
             primary: parse_hex_color(&tf.accent.primary),
@@ -939,6 +1001,7 @@ impl Theme {
                 bold: parse_hex_color(&tf.ui.editor.bold),
                 italic: parse_hex_color(&tf.ui.editor.italic),
             },
+            flat: FlatTheme { surface: flat_surface, surface_raised: tf.ui.flat.surface_raised.as_deref().map_or_else(|| lighten(flat_surface, 10), parse_hex_color), content_bg: tf.ui.flat.content_bg.as_deref().map_or_else(|| parse_hex_color(&tf.ui.content.background), parse_hex_color) },
         }
     }
     pub fn from_name(name: &str) -> Self {
@@ -968,6 +1031,12 @@ fn parse_hex_color(hex: &str) -> Color {
     }
     Color::White
 }
+fn lighten(color: Color, amount: u8) -> Color {
+    match color {
+        Color::Rgb(r, g, b) => Color::Rgb(r.saturating_add(amount), g.saturating_add(amount), b.saturating_add(amount)),
+        other => other,
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -991,6 +1060,44 @@ mod tests {
         assert_eq!(without_editor.editor.mode, EditingMode::Vim);
         let partial_editor: Config = toml::from_str("[editor]\nline_wrap = false\n").unwrap();
         assert_eq!(partial_editor.editor.mode, EditingMode::Vim);
+    }
+    #[test]
+    fn style_defaults_to_outlined() {
+        let config: Config = toml::from_str("[general]\nnotes_dir = '/tmp/notes'\n").unwrap();
+        assert_eq!(config.style, StyleMode::Outlined);
+        assert_eq!(Config::default().style, StyleMode::Outlined);
+    }
+    #[test]
+    fn style_flat_round_trips() {
+        let config: Config = toml::from_str("[general]\nstyle = \"flat\"\n").unwrap();
+        assert_eq!(config.style, StyleMode::Flat);
+        let serialized = toml::to_string_pretty(&config).unwrap();
+        assert!(serialized.contains("style = \"flat\""));
+        let parsed: Config = toml::from_str(&serialized).unwrap();
+        assert_eq!(parsed.style, StyleMode::Flat);
+    }
+    #[test]
+    fn style_mode_toggles_and_insets() {
+        assert_eq!(StyleMode::Outlined.toggled(), StyleMode::Flat);
+        assert_eq!(StyleMode::Flat.toggled(), StyleMode::Outlined);
+        assert_eq!(StyleMode::Outlined.vertical_inset(), 2);
+        assert_eq!(StyleMode::Flat.vertical_inset(), 1);
+    }
+    #[test]
+    fn theme_without_flat_table_derives_surfaces() {
+        let theme_file = ThemeFile::load_from_str("[base]\nbackground = \"#101010\"\nbackground_secondary = \"#202020\"\n\n[ui.content]\nbackground = \"#111111\"\n").unwrap();
+        let theme = Theme::from_file(&theme_file);
+        assert_eq!(theme.flat.surface, theme.background_secondary);
+        assert_eq!(theme.flat.content_bg, theme.content.background);
+        assert_eq!(theme.flat.surface_raised, Color::Rgb(0x2a, 0x2a, 0x2a));
+    }
+    #[test]
+    fn bundled_themes_keep_flat_surface_distinct_from_selection() {
+        for name in BUNDLED_THEMES {
+            let theme = Theme::from_name_in(name, std::path::Path::new("/nonexistent-ekphos-themes"));
+            assert_ne!(theme.flat.surface, theme.selection, "{name}");
+            assert_ne!(theme.flat.surface, theme.flat.surface_raised, "{name}");
+        }
     }
     #[test]
     fn explicit_editing_modes_round_trip() {

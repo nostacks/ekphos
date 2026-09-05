@@ -2,10 +2,11 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
+    widgets::{Block, Cell, Paragraph, Row, Table, TableState},
     Frame,
 };
 
+use super::panel::{panel_surface, render_panel, PanelFrame, SurfaceKind};
 use crate::app::{App, Focus};
 
 pub fn render_base_view(frame: &mut Frame, app: &mut App, area: Rect) {
@@ -14,11 +15,10 @@ pub fn render_base_view(frame: &mut Frame, app: &mut App, area: Rect) {
     app.structured.base.column_left_rect = None;
     app.structured.base.column_right_rect = None;
     let focused = app.state.focus == Focus::Content;
-    let border = if focused { app.state.theme.primary } else { app.state.theme.border };
     let note_title = app.current_note().map_or("Base", |note| note.title.as_str());
-    let block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(border)).title(format!(" {note_title}.base "));
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
+    let theme = app.state.theme.clone();
+    let panel = PanelFrame { style: app.state.config.style, theme: &theme, title: format!(" {note_title}.base "), focused, accent: theme.primary, surface: panel_surface(&app.state.config, &theme, SurfaceKind::Content) };
+    let inner = render_panel(frame, &panel, area);
     if inner.width < 12 || inner.height < 4 {
         frame.render_widget(Paragraph::new("Terminal too small for this Base").style(Style::default().fg(app.state.theme.muted)), inner);
         return;

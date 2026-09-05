@@ -2,15 +2,17 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState},
+    widgets::{List, ListItem, ListState},
     Frame,
 };
 
+use super::panel::{panel_surface, render_panel, PanelFrame, SurfaceKind};
 use crate::app::{DocumentSnapshot, DocumentState, EditorSession, Focus, Mode};
-use crate::config::Theme;
+use crate::config::{Config, Theme};
 
 pub struct OutlineView<'a> {
     pub theme: &'a Theme,
+    pub config: &'a Config,
     pub document: &'a DocumentState,
     pub snapshot: Option<&'a DocumentSnapshot>,
     pub editor: &'a EditorSession,
@@ -56,13 +58,15 @@ pub fn render_outline(f: &mut Frame, view: OutlineView<'_>, area: Rect) -> Outli
             ListItem::new(Line::from(Span::styled(format!("{}{}{}", indent, prefix, expand_tabs(title)), style)))
         })
         .collect();
-    let border_style = if view.focus == Focus::Outline && view.editor.mode == Mode::Normal { Style::default().fg(theme.primary) } else { Style::default().fg(theme.border) };
-    let mut outline = List::new(items).block(Block::default().title(" Outline ").borders(Borders::ALL).border_style(border_style));
+    let focused = view.focus == Focus::Outline && view.editor.mode == Mode::Normal;
+    let frame = PanelFrame { style: view.config.style, theme, title: " Outline ".to_string(), focused, accent: theme.primary, surface: panel_surface(view.config, theme, SurfaceKind::Side) };
+    let inner = render_panel(f, &frame, area);
+    let mut outline = List::new(items);
     if view.editor.mode != Mode::Edit {
         outline = outline.highlight_style(Style::default().bg(theme.selection).add_modifier(Modifier::BOLD)).highlight_symbol("▶ ");
     }
     let mut state = view.document.outline_state;
-    f.render_stateful_widget(outline, area, &mut state);
+    f.render_stateful_widget(outline, inner, &mut state);
     OutlineRender { area, state }
 }
 fn render_collapsed_outline(f: &mut Frame, view: &OutlineView<'_>, area: Rect) -> OutlineRender {
@@ -92,12 +96,14 @@ fn render_collapsed_outline(f: &mut Frame, view: &OutlineView<'_>, area: Rect) -
             ListItem::new(Line::from(Span::styled(display, style)))
         })
         .collect();
-    let border_style = if view.focus == Focus::Outline && view.editor.mode == Mode::Normal { Style::default().fg(theme.primary) } else { Style::default().fg(theme.border) };
-    let mut outline = List::new(items).block(Block::default().borders(Borders::ALL).border_style(border_style));
+    let focused = view.focus == Focus::Outline && view.editor.mode == Mode::Normal;
+    let frame = PanelFrame { style: view.config.style, theme, title: String::new(), focused, accent: theme.primary, surface: panel_surface(view.config, theme, SurfaceKind::Side) };
+    let inner = render_panel(f, &frame, area);
+    let mut outline = List::new(items);
     if !in_edit_mode {
         outline = outline.highlight_style(Style::default().bg(theme.selection).add_modifier(Modifier::BOLD));
     }
     let mut state = view.document.outline_state;
-    f.render_stateful_widget(outline, area, &mut state);
+    f.render_stateful_widget(outline, inner, &mut state);
     OutlineRender { area, state }
 }

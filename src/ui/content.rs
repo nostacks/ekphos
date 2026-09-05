@@ -13,6 +13,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::app::{normalize_image_destination, App, ContentItem, DialogState, DocumentRange, DocumentSnapshot, Focus, InlineImageRect, LinkInfo, Mode};
 use crate::config::Theme;
+use crate::ui::panel::{panel_surface, render_panel, PanelFrame, SurfaceKind};
 
 mod blocks;
 mod images;

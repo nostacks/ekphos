@@ -6,11 +6,13 @@ use ratatui::{
     Frame,
 };
 
+use super::panel::{panel_surface, render_accent_bar, render_panel, PanelFrame, SurfaceKind};
 use crate::app::{CutItem, Focus, Mode, SearchState, SidebarItemKind, VaultState};
-use crate::config::Theme;
+use crate::config::{Config, Theme};
 
 pub struct SidebarView<'a> {
     pub theme: &'a Theme,
+    pub config: &'a Config,
     pub vault: &'a VaultState,
     pub search: &'a SearchState,
     pub focus: Focus,
@@ -25,8 +27,10 @@ pub fn render_sidebar(f: &mut Frame, view: SidebarView<'_>, area: Rect) -> Rect 
         render_collapsed_sidebar(f, &view, area);
         return Rect::default();
     }
+    let style = view.config.style;
     let (search_area, list_area) = if view.search.search_active {
-        let chunks = Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(3), Constraint::Min(0)]).split(area);
+        let search_height = if style.is_flat() { 1 } else { 3 };
+        let chunks = Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(search_height), Constraint::Min(0)]).split(area);
         (Some(chunks[0]), chunks[1])
     } else {
         (None, area)
@@ -41,9 +45,20 @@ pub fn render_sidebar(f: &mut Frame, view: SidebarView<'_>, area: Rect) -> Rect 
         } else {
             theme.warning
         };
-        let search_block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(border_color)).title(" Search ");
-        let search_text = Paragraph::new(Line::from(vec![Span::styled("/", Style::default().fg(theme.foreground)), Span::styled(&view.search.search_query, Style::default().fg(theme.foreground)), Span::styled("_", Style::default().fg(border_color))])).block(search_block);
-        f.render_widget(search_text, search_area);
+        let search_line = Line::from(vec![Span::styled("/", Style::default().fg(theme.foreground)), Span::styled(&view.search.search_query, Style::default().fg(theme.foreground)), Span::styled("_", Style::default().fg(border_color))]);
+        if style.is_flat() {
+            let raised = panel_surface(view.config, theme, SurfaceKind::Raised);
+            let mut search_style = Style::default();
+            if let Some(bg) = raised {
+                search_style = search_style.bg(bg);
+            }
+            let input_area = Rect { x: search_area.x + 1, y: search_area.y, width: search_area.width.saturating_sub(1), height: search_area.height };
+            f.render_widget(Paragraph::new(search_line).style(search_style), input_area);
+            render_accent_bar(f, search_area, border_color, raised);
+        } else {
+            let search_block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(border_color)).title(" Search ");
+            f.render_widget(Paragraph::new(search_line).block(search_block), search_area);
+        }
     }
     let is_searching = view.search.search_active && !view.search.search_query.is_empty();
     let items: Vec<ListItem> = view
@@ -95,7 +110,7 @@ pub fn render_sidebar(f: &mut Frame, view: SidebarView<'_>, area: Rect) -> Rect 
             ListItem::new(Line::from(Span::styled(display, style)))
         })
         .collect();
-    let border_style = if view.focus == Focus::Sidebar && view.mode == Mode::Normal { Style::default().fg(theme.primary) } else { Style::default().fg(theme.border) };
+    let focused = view.focus == Focus::Sidebar && view.mode == Mode::Normal;
     let title = if is_searching {
         let match_count = view.search.search_matched_notes.len();
         let total_count = view.vault.notes.len();
@@ -104,24 +119,28 @@ pub fn render_sidebar(f: &mut Frame, view: SidebarView<'_>, area: Rect) -> Rect 
         let note_count = view.vault.sidebar_items.iter().filter(|item| matches!(item.kind, SidebarItemKind::Note { .. })).count();
         format!(" Notes ({}) [{}] ", note_count, view.vault.sort_mode.label())
     };
-    let sidebar = List::new(items).block(Block::default().title(title).borders(Borders::ALL).border_style(border_style)).highlight_style(Style::default().bg(theme.selection).add_modifier(Modifier::BOLD)).highlight_symbol("");
+    let frame = PanelFrame { style, theme, title, focused, accent: theme.primary, surface: panel_surface(view.config, theme, SurfaceKind::Side) };
+    let inner = render_panel(f, &frame, list_area);
+    let sidebar = List::new(items).highlight_style(Style::default().bg(theme.selection).add_modifier(Modifier::BOLD)).highlight_symbol("");
     let mut list_state = ListState::default();
     list_state.select(Some(view.vault.selected_sidebar_index));
-    f.render_stateful_widget(sidebar, list_area, &mut list_state);
+    f.render_stateful_widget(sidebar, inner, &mut list_state);
     list_area
 }
 fn render_collapsed_sidebar(f: &mut Frame, view: &SidebarView<'_>, area: Rect) {
     let theme = view.theme;
-    let border_style = if view.focus == Focus::Sidebar && view.mode == Mode::Normal { Style::default().fg(theme.primary) } else { Style::default().fg(theme.border) };
+    let style = view.config.style;
+    let focused = view.focus == Focus::Sidebar && view.mode == Mode::Normal;
     let note_count = view.vault.sidebar_items.iter().filter(|item| matches!(item.kind, SidebarItemKind::Note { .. })).count();
     let mut lines: Vec<Line> = Vec::new();
-    let available_height = area.height.saturating_sub(2) as usize; // subtract borders
+    let available_height = area.height.saturating_sub(style.vertical_inset()) as usize;
     let padding_top = available_height / 2;
     for _ in 0..padding_top {
         lines.push(Line::from(""));
     }
     lines.push(Line::from(Span::styled(" ≡", Style::default().fg(theme.info))));
     lines.push(Line::from(Span::styled(format!(" {}", note_count), Style::default().fg(theme.foreground))));
-    let collapsed = Paragraph::new(lines).block(Block::default().borders(Borders::ALL).border_style(border_style));
-    f.render_widget(collapsed, area);
+    let frame = PanelFrame { style, theme, title: String::new(), focused, accent: theme.primary, surface: panel_surface(view.config, theme, SurfaceKind::Side) };
+    let inner = render_panel(f, &frame, area);
+    f.render_widget(Paragraph::new(lines), inner);
 }
