@@ -775,7 +775,7 @@ impl Default for EditorColors {
 }
 /// Names of the official themes bundled into the binary via `include_str!`.
 /// Keep this in sync with the match arms in `ThemeFile::get_bundled_theme`.
-pub const BUNDLED_THEMES: &[&str] = &["ekphos-dawn", "dracula", "kanagawa"];
+pub const BUNDLED_THEMES: &[&str] = &["ekphos-dawn", "dracula", "kanagawa", "gruvbox-dark-hard"];
 /// A theme available for selection, with its origin.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ThemeEntry {
@@ -797,6 +797,7 @@ impl ThemeFile {
             "ekphos-dawn" => include_str!("../themes/ekphos-dawn.toml"),
             "dracula" => include_str!("../themes/dracula.toml"),
             "kanagawa" => include_str!("../themes/kanagawa.toml"),
+            "gruvbox-dark-hard" => include_str!("../themes/gruvbox-dark-hard.toml"),
             _ => return None,
         };
         Self::load_from_str(content)
@@ -1151,6 +1152,12 @@ mod tests {
         assert_eq!(theme.flat.surface, theme.background_secondary);
         assert_eq!(theme.flat.content_bg, theme.content.background);
         assert_eq!(theme.flat.surface_raised, Color::Rgb(0x2a, 0x2a, 0x2a));
+    }
+    #[test]
+    fn bundled_themes_parse() {
+        for name in BUNDLED_THEMES {
+            assert!(ThemeFile::get_bundled_theme(name).is_some(), "{name}");
+        }
     }
     #[test]
     fn bundled_themes_keep_flat_surface_distinct_from_selection() {

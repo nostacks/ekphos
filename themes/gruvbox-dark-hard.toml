@@ -60,6 +60,9 @@ code = "#b8bb26"
 code_background = "#3c3836"
 blockquote = "#928374"
 list_marker = "#d3869b"
+tag = "#d3869b"
+tag_background = "#3c3836"
+frontmatter = "#928374"
 
 # Outline component
 [ui.outline]
