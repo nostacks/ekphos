@@ -1,0 +1,100 @@
+# Gruvbox Dark Hard
+# The classic retro-groove color scheme, hard contrast variant
+
+[base]
+background = "#1d2021"
+background_secondary = "#3c3836"
+foreground = "#ebdbb2"
+muted = "#928374"
+
+[accent]
+primary = "#83a598"
+secondary = "#d3869b"
+
+[semantic]
+error = "#fb4934"
+warning = "#fabd2f"
+success = "#b8bb26"
+info = "#8ec07c"
+
+[ui]
+border = "#665c54"
+border_focused = "#83a598"
+selection = "#504945"
+cursor = "#ebdbb2"
+
+# Status bar component
+[ui.statusbar]
+background = "#1d2021"
+foreground = "#ebdbb2"
+brand = "#83a598"
+mode = "#928374"
+separator = "#665c54"
+
+# Dialog/popup component
+[ui.dialog]
+background = "#1d2021"
+border = "#83a598"
+title = "#83a598"
+text = "#ebdbb2"
+
+# Sidebar component
+[ui.sidebar]
+background = "#1d2021"
+item = "#ebdbb2"
+item_selected = "#fabd2f"
+folder = "#8ec07c"
+folder_expanded = "#8ec07c"
+
+# Content view component
+[ui.content]
+background = "#1d2021"
+text = "#ebdbb2"
+heading1 = "#83a598"
+heading2 = "#b8bb26"
+heading3 = "#fabd2f"
+heading4 = "#d3869b"
+link = "#8ec07c"
+link_invalid = "#fb4934"
+code = "#b8bb26"
+code_background = "#3c3836"
+blockquote = "#928374"
+list_marker = "#d3869b"
+
+# Outline component
+[ui.outline]
+background = "#1d2021"
+heading1 = "#83a598"
+heading2 = "#b8bb26"
+heading3 = "#fabd2f"
+heading4 = "#d3869b"
+
+# Search component
+[ui.search]
+background = "#3c3836"
+border = "#83a598"
+input = "#ebdbb2"
+match_highlight = "#fabd2f"
+match_current = "#fe8019"
+match_count = "#928374"
+
+# Editor highlighting component
+[ui.editor]
+heading1 = "#83a598"
+heading2 = "#b8bb26"
+heading3 = "#fabd2f"
+heading4 = "#d3869b"
+heading5 = "#8ec07c"
+heading6 = "#928374"
+code = "#b8bb26"
+link = "#8ec07c"
+blockquote = "#928374"
+list_marker = "#d3869b"
+bold = "#fabd2f"
+italic = "#8ec07c"
+
+# Flat style surfaces
+[ui.flat]
+surface = "#3c3836"
+surface_raised = "#504945"
+content_bg = "#1d2021"
