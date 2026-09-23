@@ -50,6 +50,7 @@ impl App {
         self.workers.retired_graph = None;
         // SAFETY: both operations accept null value pointers and no input;
         // they only flush/purge the linked process allocator.
+        #[cfg(not(windows))]
         unsafe {
             let _ = tikv_jemalloc_sys::mallctl(c"thread.tcache.flush".as_ptr(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), 0);
             let _ = tikv_jemalloc_sys::mallctl(c"arena.4096.purge".as_ptr(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), 0);

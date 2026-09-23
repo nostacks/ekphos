@@ -14,6 +14,7 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use ekphos::app::App;
 use ekphos::{config, event::run_app};
 
+#[cfg(not(windows))]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
