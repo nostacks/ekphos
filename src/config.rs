@@ -784,7 +784,7 @@ impl Default for EditorColors {
 }
 /// Names of the official themes bundled into the binary via `include_str!`.
 /// Keep this in sync with the match arms in `ThemeFile::get_bundled_theme`.
-pub const BUNDLED_THEMES: &[&str] = &["ekphos-dawn", "dracula", "kanagawa", "gruvbox-dark-hard"];
+pub const BUNDLED_THEMES: &[&str] = &["ekphos-dawn", "dracula", "kanagawa", "gruvbox-dark-hard", "gruvbox-dark", "gruvbox-dark-soft", "gruvbox-light-hard", "gruvbox-light", "gruvbox-light-soft", "catppuccin-mocha", "catppuccin-macchiato", "catppuccin-frappe", "catppuccin-latte"];
 /// A theme available for selection, with its origin.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ThemeEntry {
@@ -807,6 +807,15 @@ impl ThemeFile {
             "dracula" => include_str!("../themes/dracula.toml"),
             "kanagawa" => include_str!("../themes/kanagawa.toml"),
             "gruvbox-dark-hard" => include_str!("../themes/gruvbox-dark-hard.toml"),
+            "gruvbox-dark" => include_str!("../themes/gruvbox-dark.toml"),
+            "gruvbox-dark-soft" => include_str!("../themes/gruvbox-dark-soft.toml"),
+            "gruvbox-light-hard" => include_str!("../themes/gruvbox-light-hard.toml"),
+            "gruvbox-light" => include_str!("../themes/gruvbox-light.toml"),
+            "gruvbox-light-soft" => include_str!("../themes/gruvbox-light-soft.toml"),
+            "catppuccin-mocha" => include_str!("../themes/catppuccin-mocha.toml"),
+            "catppuccin-macchiato" => include_str!("../themes/catppuccin-macchiato.toml"),
+            "catppuccin-frappe" => include_str!("../themes/catppuccin-frappe.toml"),
+            "catppuccin-latte" => include_str!("../themes/catppuccin-latte.toml"),
             _ => return None,
         };
         Self::load_from_str(content)

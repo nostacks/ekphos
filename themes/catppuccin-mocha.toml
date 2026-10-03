@@ -1,0 +1,92 @@
+[base]
+background = "#1e1e2e"
+background_secondary = "#313244"
+foreground = "#cdd6f4"
+muted = "#7f849c"
+
+[accent]
+primary = "#cba6f7"
+secondary = "#f5c2e7"
+
+[semantic]
+error = "#f38ba8"
+warning = "#f9e2af"
+success = "#a6e3a1"
+info = "#89dceb"
+
+[ui]
+border = "#6c7086"
+border_focused = "#b4befe"
+selection = "#45475a"
+cursor = "#f5e0dc"
+
+[ui.statusbar]
+background = "#181825"
+foreground = "#cdd6f4"
+brand = "#cba6f7"
+mode = "#7f849c"
+separator = "#6c7086"
+
+[ui.dialog]
+background = "#1e1e2e"
+border = "#b4befe"
+title = "#cba6f7"
+text = "#cdd6f4"
+
+[ui.sidebar]
+background = "#1e1e2e"
+item = "#cdd6f4"
+item_selected = "#cba6f7"
+folder = "#89b4fa"
+folder_expanded = "#89b4fa"
+
+[ui.content]
+background = "#1e1e2e"
+text = "#cdd6f4"
+heading1 = "#f38ba8"
+heading2 = "#fab387"
+heading3 = "#f9e2af"
+heading4 = "#a6e3a1"
+link = "#89b4fa"
+link_invalid = "#f38ba8"
+code = "#a6e3a1"
+code_background = "#313244"
+blockquote = "#7f849c"
+list_marker = "#94e2d5"
+tag = "#89b4fa"
+tag_background = "#313244"
+frontmatter = "#7f849c"
+
+[ui.outline]
+background = "#1e1e2e"
+heading1 = "#f38ba8"
+heading2 = "#fab387"
+heading3 = "#f9e2af"
+heading4 = "#a6e3a1"
+
+[ui.search]
+background = "#313244"
+border = "#cba6f7"
+input = "#cdd6f4"
+match_highlight = "#f9e2af"
+match_current = "#fab387"
+match_count = "#7f849c"
+
+[ui.editor]
+heading1 = "#f38ba8"
+heading2 = "#fab387"
+heading3 = "#f9e2af"
+heading4 = "#a6e3a1"
+heading5 = "#74c7ec"
+heading6 = "#b4befe"
+code = "#a6e3a1"
+link = "#89b4fa"
+blockquote = "#7f849c"
+list_marker = "#94e2d5"
+bold = "#eba0ac"
+italic = "#f5c2e7"
+
+[ui.flat]
+surface = "#181825"
+surface_raised = "#313244"
+content_bg = "#1e1e2e"

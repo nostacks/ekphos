@@ -4,6 +4,10 @@ Notable Ekphos changes are summarized here. The in-app “What’s new” dialog
 
 ## [Unreleased]
 
+### Summary
+
+- Added Catppuccin (Mocha, Macchiato, Frappé, Latte) and the full Gruvbox family (dark, dark soft, light hard, light, light soft) as official themes.
+
 ## [0.60.0] - 2026-10-01
 
 ### Summary
