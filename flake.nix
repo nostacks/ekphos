@@ -39,8 +39,6 @@
             libxcursor
             libxrandr
             libxi
-          ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
-            darwin.apple_sdk.frameworks.AppKit
           ];
 
           meta = with pkgs.lib; {
@@ -66,8 +64,6 @@
             xorg.libXcursor
             xorg.libXrandr
             xorg.libXi
-          ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
-            darwin.apple_sdk.frameworks.AppKit
           ];
         };
       }
