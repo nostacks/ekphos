@@ -1,6 +1,6 @@
 [package]
 name = "ekphos"
-version = "0.60.0"
+version = "0.60.10"
 edition = "2021"
 rust-version = "1.90"
 authors = ["Ekphos Contributors"]

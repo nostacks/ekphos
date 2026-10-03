@@ -4,6 +4,8 @@ Notable Ekphos changes are summarized here. The in-app “What’s new” dialog
 
 ## [Unreleased]
 
+## [0.60.10] - 2026-10-03
+
 ### Summary
 
 - Added Catppuccin (Mocha, Macchiato, Frappé, Latte) and the full Gruvbox family (dark, dark soft, light hard, light, light soft) as official themes.
@@ -61,7 +63,8 @@ Ekphos is now part of nostacks, a software lab founded by Ekphos’s creator. Ek
 
 - Improved terminal compatibility and packaging across supported platforms.
 
-[Unreleased]: https://github.com/nostacks/ekphos/compare/v0.60.0...HEAD
+[Unreleased]: https://github.com/nostacks/ekphos/compare/v0.60.10...HEAD
+[0.60.10]: https://github.com/nostacks/ekphos/releases/tag/v0.60.10
 [0.60.0]: https://github.com/nostacks/ekphos/releases/tag/v0.60.0
 [0.50.20]: https://github.com/nostacks/ekphos/releases/tag/v0.50.20
 [0.50.10]: https://github.com/nostacks/ekphos/releases/tag/v0.50.10
