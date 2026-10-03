@@ -110,6 +110,13 @@ struct DiagramEntry {
     bytes: usize,
 }
 
+type FileStamp = Option<(std::time::SystemTime, u64)>;
+
+fn file_stamp(path: &Path) -> FileStamp {
+    let metadata = std::fs::metadata(path).ok()?;
+    Some((metadata.modified().ok()?, metadata.len()))
+}
+
 pub struct ImageService {
     cache_dir: PathBuf,
     request_sender: SyncSender<WorkerMessage>,
@@ -128,6 +135,7 @@ pub struct ImageService {
     diagram_sizes: HashMap<String, (f32, f32)>,
     math_metrics: HashMap<String, MathMetrics>,
     sources: HashMap<String, ImageSource>,
+    file_stamps: HashMap<String, FileStamp>,
     lru: VecDeque<String>,
     decoded_bytes: usize,
     budget: usize,
@@ -162,6 +170,7 @@ impl ImageService {
             diagram_sizes: HashMap::new(),
             math_metrics: HashMap::new(),
             sources: HashMap::new(),
+            file_stamps: HashMap::new(),
             lru: VecDeque::new(),
             decoded_bytes: 0,
             budget,
@@ -177,6 +186,7 @@ impl ImageService {
         self.diagram_sizes.clear();
         self.math_metrics.clear();
         self.sources.clear();
+        self.file_stamps.clear();
         self.lru.clear();
         self.decoded_bytes = 0;
         self.drain_stale_results();
@@ -206,6 +216,9 @@ impl ImageService {
         match self.request_sender.try_send(WorkerMessage::Load(request)) {
             Ok(()) => {
                 self.pending.insert(key.to_string(), generation);
+                if let ImageSource::Local(path) = &source {
+                    self.file_stamps.insert(key.to_string(), file_stamp(path));
+                }
                 self.sources.insert(key.to_string(), source);
                 self.ensure_workers();
                 if self.workers.is_empty() {
@@ -281,6 +294,22 @@ impl ImageService {
             return false;
         };
         self.request(key, source)
+    }
+
+    pub fn invalidate_changed_files(&mut self) -> Vec<String> {
+        let sources = &self.sources;
+        self.failures.retain(|key, _| !matches!(sources.get(key), Some(ImageSource::Remote(_))));
+        let pending = &self.pending;
+        let changed: Vec<String> = self.file_stamps.iter().filter(|(key, stamp)| !pending.contains_key(*key) && matches!(sources.get(*key), Some(ImageSource::Local(path)) if file_stamp(path) != **stamp)).map(|(key, _)| key.clone()).collect();
+        for key in &changed {
+            self.file_stamps.remove(key);
+            self.failures.remove(key);
+            if let Some(entry) = self.decoded.remove(key) {
+                self.decoded_bytes = self.decoded_bytes.saturating_sub(entry.bytes);
+                self.lru.retain(|candidate| candidate != key);
+            }
+        }
+        changed
     }
 
     pub fn insert_ready(&mut self, key: &str, image: DynamicImage) -> Result<(), String> {
@@ -739,6 +768,31 @@ mod tests {
         assert_eq!(service.decoded_bytes(), 0);
         let oversized = DynamicImage::ImageRgba8(RgbaImage::new(MAX_IMAGE_DIMENSION + 1, 1));
         assert!(service.insert_ready("oversized", oversized).is_err());
+    }
+
+    #[test]
+    fn changed_local_files_and_failed_remotes_invalidate_without_touching_the_rest() {
+        let cache = temp_dir("file-stamps");
+        let path = cache.join("photo.png");
+        RgbaImage::from_pixel(4, 4, Rgba([1, 2, 3, 255])).save(&path).unwrap();
+        let mut service = ImageService::new(cache, Arc::new(FixtureNetwork::default()));
+        service.begin_document(1);
+        assert!(service.request_local("photo", path.clone()));
+        assert!(service.request_math("math", "x^2".to_string(), [255, 255, 255], MathRenderStyle::Inline));
+        assert!(service.request_remote("remote", "https://fixtures.invalid/missing.png"));
+        wait_until_idle(&mut service);
+        assert!(service.decoded("photo").is_some());
+        assert!(service.is_failed("remote"));
+        assert!(service.invalidate_changed_files().is_empty());
+        assert!(service.decoded("photo").is_some());
+        assert!(!service.is_failed("remote"));
+        RgbaImage::from_pixel(8, 8, Rgba([4, 5, 6, 255])).save(&path).unwrap();
+        assert_eq!(service.invalidate_changed_files(), ["photo"]);
+        assert!(service.decoded("photo").is_none());
+        assert!(service.decoded("math").is_some());
+        assert!(service.request_local("photo", path));
+        wait_until_idle(&mut service);
+        assert_eq!(service.decoded("photo").map(|image| image.width()), Some(8));
     }
 
     #[test]

@@ -712,6 +712,45 @@ mod tests {
     }
 
     #[test]
+    fn toggling_a_task_keeps_rendered_blocks_and_folds_in_place() {
+        let mut fixture = GoldenApp::with_content("# Tasks\n\n- [ ] ship it\n\n```mermaid\nflowchart LR\n  A[Write] --> B[Render]\n```\n\n$$\n\\frac{a}{b}\n$$\n\n> [!note]- Details\n> Hidden body\n");
+        let note_path = fixture.root.join("vault").join("fixture.md");
+        if let Some(note) = fixture.app.vault.notes.first_mut() {
+            note.file_path = Some(note_path.clone());
+        }
+        fixture.app.images.picker = Some(Picker::halfblocks());
+        let mut terminal = Terminal::new(TestBackend::new(100, 60)).unwrap();
+        settle_images(&mut fixture, &mut terminal);
+        let item_index = |app: &App, matches: fn(&crate::app::ContentItem) -> bool| app.document.content_items.iter().position(matches).unwrap();
+        let task = item_index(&fixture.app, |item| matches!(item, crate::app::ContentItem::TaskItem { .. }));
+        let callout = item_index(&fixture.app, |item| matches!(item, crate::app::ContentItem::Callout { .. }));
+        fixture.app.toggle_callout_fold_at(callout);
+        terminal.draw(|frame| render(frame, &mut fixture.app)).unwrap();
+        let mut placements: Vec<String> = fixture.app.images.image_states.keys().cloned().collect();
+        placements.sort();
+        assert!(placements.iter().any(|key| key.starts_with("diagram:block:")), "{placements:?}");
+        assert!(placements.iter().any(|key| key.starts_with("math:block:")), "{placements:?}");
+        let diagram_key = placements.iter().find_map(|key| key.strip_prefix("diagram:block:").and_then(|rest| rest.split_once(':')).map(|(_, image_key)| image_key.to_string())).unwrap();
+        let scene = fixture.app.diagram_scene(&diagram_key).unwrap();
+
+        fixture.app.toggle_task_at(task);
+        assert!(fs::read_to_string(&note_path).unwrap().contains("- [x] ship it"));
+        assert!(!fixture.app.image_has_background_work());
+        terminal.draw(|frame| render(frame, &mut fixture.app)).unwrap();
+
+        assert!(!fixture.app.image_has_background_work());
+        let mut after: Vec<String> = fixture.app.images.image_states.keys().cloned().collect();
+        after.sort();
+        assert_eq!(after, placements);
+        assert!(std::sync::Arc::ptr_eq(&scene, &fixture.app.diagram_scene(&diagram_key).unwrap()));
+        assert!(!fixture.app.is_callout_folded(callout));
+        let screen = screen_text(&terminal);
+        assert!(screen.contains("[x] ship it"), "{screen}");
+        assert!(screen.contains("Hidden body"), "{screen}");
+        assert!(!screen.contains("Rendering"), "{screen}");
+    }
+
+    #[test]
     fn diagram_viewer_renders_frames_that_follow_zoom_and_closes_cleanly() {
         let mut fixture = GoldenApp::with_content(DIAGRAM_NOTE);
         fixture.app.images.picker = Some(Picker::halfblocks());

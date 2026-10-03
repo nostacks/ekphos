@@ -68,6 +68,7 @@ impl App {
             + self.document.document_links.capacity() * std::mem::size_of::<LinkInfo>()
             + self.document.document_links.iter().map(link_info_bytes).sum::<usize>()
             + self.document.content_render_scratch.item_text_heights.capacity() * std::mem::size_of::<u16>()
+            + self.document.content_render_scratch.item_height_keys.capacity() * std::mem::size_of::<Option<u64>>()
             + self.document.content_render_scratch.constraints.capacity() * std::mem::size_of::<Constraint>()
             + self.document.content_render_scratch.visible_indices.capacity() * std::mem::size_of::<usize>();
         let search_result_bytes = match &self.search.search_picker {

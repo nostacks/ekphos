@@ -424,6 +424,7 @@ impl App {
             let Some(new_note_idx) = self.note_index_for_id(note_id) else {
                 return;
             };
+            let switching = self.document.parsed_note_id != Some(note_id);
             if self.vault.selected_note != new_note_idx {
                 if !self.load_note_body(note_id) {
                     self.select_current_note_in_sidebar();
@@ -434,7 +435,9 @@ impl App {
                 return;
             }
             self.vault.selected_note = new_note_idx;
-            self.evict_document_services();
+            if switching {
+                self.evict_document_services();
+            }
         }
     }
 

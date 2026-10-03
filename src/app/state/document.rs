@@ -81,6 +81,9 @@ fn push_callout(parsed: &mut ParsedDocument, document: &DocumentSnapshot, header
     }
     line_index
 }
+fn same_item_layout(previous: &[ContentItem], current: &[ContentItem]) -> bool {
+    previous.len() == current.len() && previous.iter().zip(current).all(|(previous, current)| std::mem::discriminant(previous) == std::mem::discriminant(current) && previous.source_line() == current.source_line())
+}
 fn parse_document(document: &DocumentSnapshot, frontmatter: Option<&CompactFrontmatter>, content_start_line: usize, frontmatter_hidden: bool, show_tags: bool, wiki_exists: &dyn Fn(&str) -> bool) -> ParsedDocument {
     let mut parsed = ParsedDocument { items: Vec::with_capacity(document.line_count()), tables: Vec::new(), outline: Vec::new(), links: Vec::new(), link_ranges: Vec::with_capacity(document.line_count()) };
     let mut line_index = 0usize;
@@ -276,6 +279,7 @@ impl App {
             self.document.document_link_ranges.clear();
             self.document.outline.clear();
             self.document.document_parse_key = None;
+            self.document.parsed_note_id = None;
             self.document.content_cursor = 0;
             self.document.content_scroll_offset = 0;
             self.document.selected_link_index = 0;
@@ -290,17 +294,20 @@ impl App {
         if self.document.active_document.is_some() && self.document.document_parse_key == Some(parse_key) {
             return;
         }
-        self.document.content_items.clear();
+        let same_note = self.document.active_note_id.is_some() && self.document.parsed_note_id == self.document.active_note_id;
+        let previous_items = std::mem::take(&mut self.document.content_items);
+        let heading_folds = std::mem::take(&mut self.document.heading_fold_states);
+        let callout_folds = std::mem::take(&mut self.document.callout_fold_states);
+        let details_open = std::mem::take(&mut self.document.details_open_states);
         self.document.document_tables.clear();
         self.document.document_links.clear();
         self.document.document_link_ranges.clear();
         self.document.outline.clear();
-        self.evict_document_services();
+        if !same_note {
+            self.evict_document_services();
+        }
         self.state.inline_image_rects.clear();
         self.state.mouse_hover_inline_image = None;
-        self.document.details_open_states.clear();
-        self.document.heading_fold_states.clear();
-        self.document.callout_fold_states.clear();
         if let Some(document) = self.document.active_document.as_ref() {
             let (frontmatter, content_start_line) = self.current_note().map(|note| (note.frontmatter.as_ref(), note.content_start_line)).unwrap_or((None, 0));
             let parsed = parse_document(document, frontmatter, content_start_line, self.document.frontmatter_hidden, self.state.config.show_tags, &|target| self.wiki_link_exists(target));
@@ -310,10 +317,18 @@ impl App {
             self.document.document_links = parsed.links;
             self.document.document_link_ranges = parsed.link_ranges;
             self.document.callout_fold_states.extend(self.document.content_items.iter().enumerate().filter_map(|(index, item)| matches!(item, ContentItem::Callout { fold: CalloutFold::Collapsed, .. }).then_some((index, true))));
+            if same_note && same_item_layout(&previous_items, &self.document.content_items) {
+                let items = &self.document.content_items;
+                self.document.heading_fold_states.extend(heading_folds.into_iter().filter(|(index, _)| matches!(items.get(*index), Some(ContentItem::TextLine { heading_level, .. }) if *heading_level > 0)));
+                self.document.callout_fold_states.extend(callout_folds.into_iter().filter(|(index, _)| matches!((previous_items.get(*index), items.get(*index)), (Some(ContentItem::Callout { fold: previous, .. }), Some(ContentItem::Callout { fold: current, .. })) if previous == current)));
+                self.document.details_open_states = details_open;
+            }
             self.document.document_parse_key = Some(parse_key);
+            self.document.parsed_note_id = self.document.active_note_id;
             self.document.document_parse_count = self.document.document_parse_count.saturating_add(1);
         } else {
             self.document.document_parse_key = None;
+            self.document.parsed_note_id = None;
         }
         self.document.content_cursor = 0;
         self.update_outline();

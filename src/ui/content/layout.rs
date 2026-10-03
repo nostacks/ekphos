@@ -76,61 +76,67 @@ pub fn render_content(f: &mut Frame, app: &mut App, area: Rect) {
         inline_math_visual_height(&wrapped, states).min(max_item_height)
     };
     if scratch.height_generation != app.document.document_generation || scratch.height_width != available_width || scratch.item_text_heights.len() != app.document.content_items.len() {
-        scratch.item_text_heights.clear();
-        scratch.item_text_heights.extend(app.document.content_items.iter().enumerate().map(|(idx, item)| match item {
-            ContentItem::TextLine { range, .. } => {
-                let line = normalize_whitespace(document.slice(*range));
-                let (prose_source, prefix_len) = unordered_list_parts(&line).map_or((line.as_str(), 4), |(indent, body)| (body, 4 + indent.len()));
-                if !inline_math[idx].is_empty() {
-                    let mut spans = vec![Span::raw("  ")];
-                    if let Some((indent, body)) = unordered_list_parts(&line) {
-                        if !indent.is_empty() {
-                            spans.push(Span::raw(indent.to_string()));
+        let reusable: std::collections::HashMap<u64, u16> = if scratch.height_width == available_width { scratch.item_height_keys.iter().zip(&scratch.item_text_heights).filter_map(|(key, height)| key.map(|key| (key, *height))).collect() } else { std::collections::HashMap::new() };
+        let measure = |idx: usize, item: &ContentItem| -> u16 {
+            match item {
+                ContentItem::TextLine { range, .. } => {
+                    let line = normalize_whitespace(document.slice(*range));
+                    let (prose_source, prefix_len) = unordered_list_parts(&line).map_or((line.as_str(), 4), |(indent, body)| (body, 4 + indent.len()));
+                    if !inline_math[idx].is_empty() {
+                        let mut spans = vec![Span::raw("  ")];
+                        if let Some((indent, body)) = unordered_list_parts(&line) {
+                            if !indent.is_empty() {
+                                spans.push(Span::raw(indent.to_string()));
+                            }
+                            spans.push(Span::raw("• "));
+                            spans.extend(parse_inline_formatting_with_math::<fn(&str) -> bool>(body, theme, None, None, &inline_math[idx]));
+                        } else if let Some(body) = line.strip_prefix("> ") {
+                            spans.push(Span::raw("┃ "));
+                            spans.extend(parse_inline_formatting_with_math::<fn(&str) -> bool>(body, theme, None, None, &inline_math[idx]));
+                        } else {
+                            spans.extend(parse_inline_formatting_with_math::<fn(&str) -> bool>(&line, theme, None, None, &inline_math[idx]));
                         }
-                        spans.push(Span::raw("• "));
-                        spans.extend(parse_inline_formatting_with_math::<fn(&str) -> bool>(body, theme, None, None, &inline_math[idx]));
-                    } else if let Some(body) = line.strip_prefix("> ") {
-                        spans.push(Span::raw("┃ "));
-                        spans.extend(parse_inline_formatting_with_math::<fn(&str) -> bool>(body, theme, None, None, &inline_math[idx]));
+                        return calc_inline_math_height(spans, &inline_math[idx]);
+                    }
+                    if app.inline_image_count_at(idx) == 0 {
+                        calc_wrapped_height(&inline_math_layout_source(prose_source, &inline_math[idx]), prefix_len)
                     } else {
-                        spans.extend(parse_inline_formatting_with_math::<fn(&str) -> bool>(&line, theme, None, None, &inline_math[idx]));
+                        let prose_source = prose_source.strip_prefix("> ").unwrap_or(prose_source);
+                        let prose = inline_prose_text_with_math(prose_source, theme, &inline_math[idx]);
+                        if prose.is_empty() {
+                            0
+                        } else {
+                            calc_wrapped_height(&prose, prefix_len)
+                        }
                     }
-                    return calc_inline_math_height(spans, &inline_math[idx]);
                 }
-                if app.inline_image_count_at(idx) == 0 {
-                    calc_wrapped_height(&inline_math_layout_source(prose_source, &inline_math[idx]), prefix_len)
-                } else {
-                    let prose_source = prose_source.strip_prefix("> ").unwrap_or(prose_source);
-                    let prose = inline_prose_text_with_math(prose_source, theme, &inline_math[idx]);
-                    if prose.is_empty() {
-                        0
+                ContentItem::TaskItem { text, indent, .. } => {
+                    let text = document.slice(*text);
+                    if !inline_math[idx].is_empty() {
+                        let expanded = expand_tabs(text);
+                        let mut spans = vec![Span::raw("  ")];
+                        if *indent > 0 {
+                            spans.push(Span::raw(task_tree_prefix(*indent as usize, false)));
+                        }
+                        spans.extend([Span::raw("["), Span::raw(" "), Span::raw("]"), Span::raw(" ")]);
+                        spans.extend(parse_inline_formatting_with_math::<fn(&str) -> bool>(&expanded, theme, None, None, &inline_math[idx]));
+                        return calc_inline_math_height(spans, &inline_math[idx]);
+                    }
+                    if app.inline_image_count_at(idx) == 0 {
+                        calc_wrapped_height(&inline_math_layout_source(text, &inline_math[idx]), 6 + *indent as usize)
                     } else {
-                        calc_wrapped_height(&prose, prefix_len)
+                        let prose = inline_prose_text_with_math(text, theme, &inline_math[idx]);
+                        calc_wrapped_height(&prose, 6 + *indent as usize)
                     }
                 }
+                ContentItem::Callout { range, .. } => callout_header_height(document.slice(*range), inner_area.width, theme).min(max_item_height),
+                _ => 0,
             }
-            ContentItem::TaskItem { text, indent, .. } => {
-                let text = document.slice(*text);
-                if !inline_math[idx].is_empty() {
-                    let expanded = expand_tabs(text);
-                    let mut spans = vec![Span::raw("  ")];
-                    if *indent > 0 {
-                        spans.push(Span::raw(task_tree_prefix(*indent as usize, false)));
-                    }
-                    spans.extend([Span::raw("["), Span::raw(" "), Span::raw("]"), Span::raw(" ")]);
-                    spans.extend(parse_inline_formatting_with_math::<fn(&str) -> bool>(&expanded, theme, None, None, &inline_math[idx]));
-                    return calc_inline_math_height(spans, &inline_math[idx]);
-                }
-                if app.inline_image_count_at(idx) == 0 {
-                    calc_wrapped_height(&inline_math_layout_source(text, &inline_math[idx]), 6 + *indent as usize)
-                } else {
-                    let prose = inline_prose_text_with_math(text, theme, &inline_math[idx]);
-                    calc_wrapped_height(&prose, 6 + *indent as usize)
-                }
-            }
-            ContentItem::Callout { range, .. } => callout_header_height(document.slice(*range), inner_area.width, theme).min(max_item_height),
-            _ => 0,
-        }));
+        };
+        scratch.item_height_keys.clear();
+        scratch.item_height_keys.extend(app.document.content_items.iter().map(|item| item_height_key(document, item)));
+        scratch.item_text_heights.clear();
+        scratch.item_text_heights.extend(app.document.content_items.iter().zip(&scratch.item_height_keys).enumerate().map(|(idx, (item, key))| key.and_then(|key| reusable.get(&key).copied()).unwrap_or_else(|| measure(idx, item))));
         scratch.height_generation = app.document.document_generation;
         scratch.height_width = available_width;
     }
@@ -421,6 +427,20 @@ pub fn render_content(f: &mut Frame, app: &mut App, area: Rect) {
     }
     app.document.content_render_scratch = scratch;
     app.finish_image_frame();
+}
+
+fn item_height_key(document: &DocumentSnapshot, item: &ContentItem) -> Option<u64> {
+    use std::hash::{Hash, Hasher};
+    let kind = match item {
+        ContentItem::TextLine { .. } => 0u8,
+        ContentItem::TaskItem { .. } => 1,
+        ContentItem::Callout { .. } => 2,
+        _ => return None,
+    };
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    kind.hash(&mut hasher);
+    document.line(item.source_line()).unwrap_or("").hash(&mut hasher);
+    Some(hasher.finish())
 }
 
 fn task_has_next_sibling(items: &[ContentItem], item_index: usize, indent: u16) -> bool {

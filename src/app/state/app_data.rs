@@ -706,6 +706,7 @@ pub struct DocumentState {
     pub active_document: Option<DocumentSnapshot>,
     pub document_generation: u64,
     pub(crate) document_parse_key: Option<(u64, u64, bool, bool)>,
+    pub(crate) parsed_note_id: Option<NoteId>,
     #[doc(hidden)]
     pub document_parse_count: u64,
     pub outline: Vec<OutlineItem>,
@@ -736,6 +737,7 @@ impl DocumentState {
             active_document: None,
             document_generation: 0,
             document_parse_key: None,
+            parsed_note_id: None,
             document_parse_count: 0,
             outline: Vec::new(),
             outline_state: ListState::default(),

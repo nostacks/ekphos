@@ -384,7 +384,6 @@ pub struct ImageState {
     pub image: SlicedProtocol,
     pub size: Size,
     pub source_bytes: usize,
-    pub document_generation: u64,
     pub last_visible_epoch: u64,
 }
 
@@ -469,6 +468,7 @@ pub struct DocumentLinkRange {
 #[derive(Default)]
 pub struct ContentRenderScratch {
     pub item_text_heights: Vec<u16>,
+    pub item_height_keys: Vec<Option<u64>>,
     pub constraints: Vec<Constraint>,
     pub visible_indices: Vec<usize>,
     pub height_generation: u64,

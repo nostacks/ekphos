@@ -182,8 +182,7 @@ impl App {
     }
     pub fn finish_image_frame(&mut self) {
         let epoch = self.images.render_epoch;
-        let generation = self.document.document_generation;
-        self.images.image_states.retain(|_, state| state.last_visible_epoch == epoch && state.document_generation == generation);
+        self.images.image_states.retain(|_, state| state.last_visible_epoch == epoch);
         self.images.protocol_bytes = self.images.image_states.values().map(|state| state.source_bytes).sum();
         self.trim_image_memory();
     }
@@ -191,7 +190,7 @@ impl App {
         let Some(state) = self.images.image_states.get_mut(key) else {
             return false;
         };
-        if state.size != size || state.document_generation != self.document.document_generation {
+        if state.size != size {
             self.remove_image_state(key);
             return false;
         }
@@ -206,8 +205,17 @@ impl App {
     pub fn insert_image_state(&mut self, key: String, image: SlicedProtocol, size: Size, source_bytes: usize) {
         self.remove_image_state(&key);
         self.images.protocol_bytes = self.images.protocol_bytes.saturating_add(source_bytes);
-        self.images.image_states.insert(key, ImageState { image, size, source_bytes, document_generation: self.document.document_generation, last_visible_epoch: self.images.render_epoch });
+        self.images.image_states.insert(key, ImageState { image, size, source_bytes, last_visible_epoch: self.images.render_epoch });
         self.trim_image_memory();
+    }
+    pub(crate) fn refresh_changed_images(&mut self) {
+        for key in self.images.worker.invalidate_changed_files() {
+            let suffix = format!(":{key}");
+            let stale: Vec<String> = self.images.image_states.keys().filter(|state_key| state_key.ends_with(&suffix)).cloned().collect();
+            for state_key in stale {
+                self.remove_image_state(&state_key);
+            }
+        }
     }
     pub(crate) fn evict_document_services(&mut self) {
         self.images.image_states.clear();

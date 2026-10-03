@@ -51,6 +51,7 @@ impl App {
         let content_cursor = self.document.content_cursor;
         self.load_notes_from_dir();
         self.update_content_items();
+        self.refresh_changed_images();
         let len = self.document.content_items.len();
         self.document.content_cursor = content_cursor.min(len.saturating_sub(1));
         self.document.content_scroll_offset = if len == 0 { 0 } else { scroll_offset.clamp(1, len) };
