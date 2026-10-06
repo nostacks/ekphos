@@ -4,6 +4,8 @@ Notable Ekphos changes are summarized here. The in-app “What’s new” dialog
 
 ## [Unreleased]
 
+## [0.60.20] - 2026-10-06
+
 ### Summary
 
 - Code blocks now pick a syntax theme that matches the UI theme: light themes get a light palette and dark themes a dark one, choosing the highest-contrast option against the theme's code background. `syntax_theme` now defaults to `auto`.
@@ -69,7 +71,8 @@ Ekphos is now part of nostacks, a software lab founded by Ekphos’s creator. Ek
 
 - Improved terminal compatibility and packaging across supported platforms.
 
-[Unreleased]: https://github.com/nostacks/ekphos/compare/v0.60.10...HEAD
+[Unreleased]: https://github.com/nostacks/ekphos/compare/v0.60.20...HEAD
+[0.60.20]: https://github.com/nostacks/ekphos/releases/tag/v0.60.20
 [0.60.10]: https://github.com/nostacks/ekphos/releases/tag/v0.60.10
 [0.60.0]: https://github.com/nostacks/ekphos/releases/tag/v0.60.0
 [0.50.20]: https://github.com/nostacks/ekphos/releases/tag/v0.50.20
