@@ -236,7 +236,38 @@ impl App {
         }
     }
     pub fn poll_highlighter(&mut self) -> bool {
-        self.state.syntax_service.poll()
+        let changed = self.state.syntax_service.poll();
+        if changed {
+            self.warn_unknown_syntax_theme();
+        }
+        changed
+    }
+
+    fn chosen_syntax_theme(&self, ui_theme_name: &str) -> Option<&str> {
+        let choices = self.state.theme_picker.as_ref().map_or(&self.state.config.syntax_themes, |picker| &picker.syntax_themes);
+        choices.get(ui_theme_name).map(String::as_str)
+    }
+
+    pub(super) fn sync_syntax_theme(&mut self, ui_theme_name: &str) {
+        let request = self.state.theme.syntax_theme_request(self.chosen_syntax_theme(ui_theme_name), &self.state.config.syntax_theme);
+        if self.state.syntax_service.configure_theme(request) {
+            self.warn_unknown_syntax_theme();
+        }
+    }
+
+    fn warn_unknown_syntax_theme(&mut self) {
+        if let (Some(name), Some(active)) = (self.state.syntax_service.unknown_theme(), self.state.syntax_service.active_theme()) {
+            let message = format!("Unknown syntax theme \"{name}\", using {active}");
+            self.show_error_toast(message);
+        }
+    }
+
+    pub fn syntax_theme_label(&self, ui_theme_name: &str) -> String {
+        match (self.chosen_syntax_theme(ui_theme_name), self.state.syntax_service.active_theme()) {
+            (Some(chosen), _) => chosen.to_string(),
+            (None, Some(active)) => format!("Auto ({active})"),
+            (None, None) => "Auto".to_string(),
+        }
     }
 
     pub fn ensure_highlighter(&mut self) {

@@ -113,6 +113,7 @@ pub struct ThemePicker {
     /// Theme name active when the picker was opened, restored on Esc.
     pub original_theme_name: String,
     pub original_style: StyleMode,
+    pub syntax_themes: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]

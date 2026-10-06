@@ -83,7 +83,8 @@ impl App {
         self.editor.set_scrolloff(self.state.config.editor.scrolloff as usize);
         self.update_editor_block();
         self.editor.set_selection_style(Style::default().fg(self.state.theme.foreground).bg(self.state.theme.selection));
-        self.state.syntax_service.configure_theme(&self.state.config.syntax_theme);
+        let theme_name = self.state.config.theme.clone();
+        self.sync_syntax_theme(&theme_name);
         self.state.syntax_service.clear_results();
         self.state.syntax_service.retry();
         self.load_notes_from_dir();
@@ -113,11 +114,12 @@ impl App {
 
     /// Swap the active runtime theme without touching config or reloading notes
     /// from disk. Content/editor views read `self.state.theme` live each frame, so the
-    /// whole UI re-skins on the next render; the syntect code-block highlighter
-    /// keys off `syntax_theme` (unchanged here) so it is intentionally left
-    /// alone. Used for both live preview and final apply in the theme selector.
+    /// whole UI re-skins on the next render, and the code-block highlighter is
+    /// re-resolved for the new theme.
+    /// Used for both live preview and final apply in the theme selector.
     pub(super) fn apply_theme_named(&mut self, name: &str) {
         self.state.theme = Theme::from_name_in(name, &Config::themes_dir_in(&self.dependencies.config_dir));
+        self.sync_syntax_theme(name);
         self.update_editor_block();
         self.editor.set_selection_style(Style::default().fg(self.state.theme.foreground).bg(self.state.theme.selection));
         self.state.needs_full_clear = true;
@@ -135,8 +137,33 @@ impl App {
         }
         let selected = themes.iter().position(|t| t.name == self.state.config.theme).unwrap_or(0);
         let style = self.state.config.style;
-        self.state.theme_picker = Some(ThemePicker { themes, selected, scroll_offset: 0, style, original_theme_name: self.state.config.theme.clone(), original_style: style });
+        self.state.theme_picker = Some(ThemePicker { themes, selected, scroll_offset: 0, style, original_theme_name: self.state.config.theme.clone(), original_style: style, syntax_themes: self.state.config.syntax_themes.clone() });
         self.state.dialog = DialogState::ThemeSelector;
+        self.ensure_highlighter();
+    }
+
+    pub fn theme_selector_cycle_syntax(&mut self, forward: bool) {
+        let Some(names) = self.get_highlighter().map(|highlighter| highlighter.theme_names().map(str::to_string).collect::<Vec<_>>()) else {
+            return;
+        };
+        let Some(picker) = self.state.theme_picker.as_mut() else {
+            return;
+        };
+        let Some(theme_name) = picker.themes.get(picker.selected).map(|entry| entry.name.clone()) else {
+            return;
+        };
+        let len = names.len() + 1;
+        let current = picker.syntax_themes.get(&theme_name).and_then(|chosen| names.iter().position(|name| name == chosen)).map_or(0, |index| index + 1);
+        let next = if forward { (current + 1) % len } else { (current + len - 1) % len };
+        match next.checked_sub(1).and_then(|index| names.get(index)) {
+            Some(name) => {
+                picker.syntax_themes.insert(theme_name.clone(), name.clone());
+            }
+            None => {
+                picker.syntax_themes.remove(&theme_name);
+            }
+        }
+        self.sync_syntax_theme(&theme_name);
     }
 
     fn apply_style_mode(&mut self, style: StyleMode) {
@@ -190,11 +217,12 @@ impl App {
     pub fn confirm_theme_selection(&mut self) {
         if let Some(picker) = self.state.theme_picker.take() {
             self.apply_style_mode(picker.style);
+            self.state.config.syntax_themes = picker.syntax_themes;
             if let Some(entry) = picker.themes.get(picker.selected) {
                 let name = entry.name.clone();
                 self.state.config.theme = name.clone();
                 self.apply_theme_named(&name);
-                self.state.status_message = Some(format!("Theme: {} · Style: {}", name, picker.style.display_name()));
+                self.state.status_message = Some(format!("Theme: {} · Style: {} · Syntax: {}", name, picker.style.display_name(), self.syntax_theme_label(&name)));
             }
             let _ = self.state.config.save_to_dir(&self.dependencies.config_dir);
         }

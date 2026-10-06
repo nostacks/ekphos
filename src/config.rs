@@ -1,4 +1,5 @@
 pub use crate::editor::LineNumberMode;
+use crate::highlight::{SyntaxThemeRequest, AUTO_SYNTAX_THEME};
 use crate::keybindings::KeybindingsConfig;
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
@@ -30,6 +31,8 @@ pub struct Config {
     pub keybindings: KeybindingsConfig,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub frontmatter_templates: BTreeMap<String, String>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub syntax_themes: BTreeMap<String, String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneralConfig {
@@ -212,7 +215,7 @@ fn default_theme_name() -> String {
     "ekphos-dawn".to_string()
 }
 fn default_syntax_theme() -> String {
-    "base16-ocean.dark".to_string()
+    crate::highlight::AUTO_SYNTAX_THEME.to_string()
 }
 fn default_image_height() -> u16 {
     8
@@ -310,6 +313,8 @@ struct ConfigFile {
     keybindings: KeybindingsConfig,
     #[serde(default)]
     frontmatter_templates: BTreeMap<String, String>,
+    #[serde(default)]
+    syntax_themes: BTreeMap<String, String>,
     #[serde(flatten)]
     legacy_general: GeneralConfig,
 }
@@ -319,7 +324,7 @@ impl<'de> Deserialize<'de> for Config {
         D: serde::Deserializer<'de>,
     {
         let file = ConfigFile::deserialize(deserializer)?;
-        Ok(Self { general: file.general.unwrap_or(file.legacy_general), editor: file.editor, keybindings: file.keybindings, frontmatter_templates: file.frontmatter_templates })
+        Ok(Self { general: file.general.unwrap_or(file.legacy_general), editor: file.editor, keybindings: file.keybindings, frontmatter_templates: file.frontmatter_templates, syntax_themes: file.syntax_themes })
     }
 }
 impl Config {
@@ -457,6 +462,8 @@ impl Config {
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ThemeFile {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub syntax_theme: Option<String>,
     #[serde(default)]
     pub base: BaseColors,
     #[serde(default)]
@@ -909,6 +916,7 @@ pub struct Theme {
     pub search: SearchTheme,
     pub editor: EditorTheme,
     pub flat: FlatTheme,
+    pub syntax_theme: Option<String>,
 }
 #[derive(Debug, Clone)]
 pub struct FlatTheme {
@@ -1070,7 +1078,15 @@ impl Theme {
                 italic: parse_hex_color(&tf.ui.editor.italic),
             },
             flat: FlatTheme { surface: flat_surface, surface_raised: tf.ui.flat.surface_raised.as_deref().map_or_else(|| lighten(flat_surface, 10), parse_hex_color), content_bg: tf.ui.flat.content_bg.as_deref().map_or_else(|| parse_hex_color(&tf.ui.content.background), parse_hex_color) },
+            syntax_theme: tf.syntax_theme.clone(),
         }
+    }
+    pub fn syntax_theme_request(&self, chosen: Option<&str>, configured: &str) -> SyntaxThemeRequest {
+        if let Some(name) = chosen.or(self.syntax_theme.as_deref()).filter(|name| *name != AUTO_SYNTAX_THEME) {
+            return SyntaxThemeRequest::Named(name.to_string());
+        }
+        let preferred = (configured != AUTO_SYNTAX_THEME).then(|| configured.to_string());
+        SyntaxThemeRequest::Auto { background: self.content.code_background, preferred }
     }
     pub fn from_name(name: &str) -> Self {
         if let Some(theme_file) = ThemeFile::load_by_name(name) {
@@ -1176,6 +1192,30 @@ mod tests {
         for name in BUNDLED_THEMES {
             assert!(ThemeFile::get_bundled_theme(name).is_some(), "{name}");
         }
+    }
+    #[test]
+    fn chosen_syntax_theme_beats_declared_and_declared_beats_auto() {
+        let declared = Theme::from_file(&ThemeFile::load_from_str("syntax_theme = \"Solarized (dark)\"\n\n[ui.content]\ncode_background = \"#fdf6e3\"\n").unwrap());
+        assert_eq!(declared.syntax_theme_request(Some("base16-ocean.light"), "auto"), SyntaxThemeRequest::Named("base16-ocean.light".to_string()));
+        assert_eq!(declared.syntax_theme_request(None, "base16-ocean.dark"), SyntaxThemeRequest::Named("Solarized (dark)".to_string()));
+    }
+    #[test]
+    fn undeclared_syntax_theme_is_resolved_automatically_from_the_code_background() {
+        let theme = Theme::from_file(&ThemeFile::load_from_str("[ui.content]\ncode_background = \"#fdf6e3\"\n").unwrap());
+        let background = Color::Rgb(0xfd, 0xf6, 0xe3);
+        assert_eq!(theme.syntax_theme_request(None, "auto"), SyntaxThemeRequest::Auto { background, preferred: None });
+        assert_eq!(theme.syntax_theme_request(Some("auto"), "auto"), SyntaxThemeRequest::Auto { background, preferred: None });
+        assert_eq!(theme.syntax_theme_request(None, "Solarized (light)"), SyntaxThemeRequest::Auto { background, preferred: Some("Solarized (light)".to_string()) });
+    }
+    #[test]
+    fn syntax_theme_defaults_to_auto_and_choices_round_trip() {
+        assert_eq!(Config::default().syntax_theme, "auto");
+        let mut config = Config::default();
+        config.syntax_themes.insert("gruvbox-light".to_string(), "Solarized (light)".to_string());
+        let serialized = toml::to_string_pretty(&config).unwrap();
+        let parsed: Config = toml::from_str(&serialized).unwrap();
+        assert_eq!(parsed.syntax_themes, config.syntax_themes, "{serialized}");
+        assert!(!toml::to_string_pretty(&Config::default()).unwrap().contains("[syntax_themes]"));
     }
     #[test]
     fn bundled_themes_keep_flat_surface_distinct_from_selection() {

@@ -4,6 +4,12 @@ Notable Ekphos changes are summarized here. The in-app “What’s new” dialog
 
 ## [Unreleased]
 
+### Summary
+
+- Code blocks now pick a syntax theme that matches the UI theme: light themes get a light palette and dark themes a dark one, choosing the highest-contrast option against the theme's code background. `syntax_theme` now defaults to `auto`.
+- Added a Syntax row to the theme selector (`Ctrl+T`). Press `s` or `S` to cycle through the syntax themes with live preview. The choice is saved per UI theme, and cycling back to Auto clears it.
+- Theme files can declare their own `syntax_theme`, and an unknown syntax theme name now shows an error instead of silently falling back.
+
 ## [0.60.10] - 2026-10-03
 
 ### Summary

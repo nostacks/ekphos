@@ -124,7 +124,8 @@ pub fn render(f: &mut Frame, app: &mut App) {
         DialogState::TaskView => task_view::render_task_view(f, app),
         DialogState::ThemeSelector => {
             if let Some(picker) = app.state.theme_picker.as_ref() {
-                let scroll = theme_picker::render_theme_picker(f, theme_picker::ThemePickerView { theme: &app.state.theme, picker });
+                let syntax_label = picker.themes.get(picker.selected).map(|entry| app.syntax_theme_label(&entry.name)).unwrap_or_default();
+                let scroll = theme_picker::render_theme_picker(f, theme_picker::ThemePickerView { theme: &app.state.theme, picker, syntax_label: &syntax_label });
                 if let (Some(scroll), Some(picker)) = (scroll, app.state.theme_picker.as_mut()) {
                     picker.scroll_offset = scroll;
                 }
@@ -343,6 +344,109 @@ mod tests {
         assert_eq!(fixture.app.state.config.style, crate::config::StyleMode::Flat);
         let saved = fs::read_to_string(fixture.root.join("config").join("config.toml")).unwrap();
         assert!(saved.contains("style = \"flat\""), "{saved}");
+    }
+
+    fn select_theme(fixture: &mut GoldenApp, name: &str) {
+        let picker = fixture.app.state.theme_picker.as_mut().unwrap();
+        let index = picker.themes.iter().position(|entry| entry.name == name).unwrap();
+        picker.selected = (index + picker.themes.len() - 1) % picker.themes.len();
+        fixture.app.theme_selector_select_next();
+    }
+
+    fn wait_for_highlighter(fixture: &mut GoldenApp) {
+        fixture.app.ensure_highlighter();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !fixture.app.poll_highlighter() && Instant::now() < deadline {
+            std::thread::yield_now();
+        }
+        assert_eq!(fixture.app.syntax_service_status(), SyntaxServiceStatus::Ready);
+    }
+
+    fn active_syntax(fixture: &GoldenApp) -> &str {
+        fixture.app.state.syntax_service.active_theme().unwrap()
+    }
+
+    #[test]
+    fn theme_selector_auto_pairs_syntax_with_theme_lightness() {
+        let mut fixture = GoldenApp::new();
+        wait_for_highlighter(&mut fixture);
+        assert_eq!(active_syntax(&fixture), "base16-eighties.dark");
+        fixture.app.open_theme_selector();
+        select_theme(&mut fixture, "gruvbox-light-hard");
+        assert_eq!(active_syntax(&fixture), "InspiredGitHub");
+        fixture.app.cancel_theme_selection();
+        assert_eq!(active_syntax(&fixture), "base16-eighties.dark");
+        fixture.app.open_theme_selector();
+        select_theme(&mut fixture, "catppuccin-latte");
+        fixture.app.confirm_theme_selection();
+        assert_eq!(active_syntax(&fixture), "InspiredGitHub");
+        assert_eq!(fixture.app.state.config.syntax_theme, "auto");
+        assert!(fixture.app.state.config.syntax_themes.is_empty());
+        fixture.app.open_theme_selector();
+        select_theme(&mut fixture, "dracula");
+        fixture.app.confirm_theme_selection();
+        assert_eq!(active_syntax(&fixture), "base16-eighties.dark");
+        assert!(fixture.app.state.toast.is_none());
+    }
+
+    #[test]
+    fn theme_selector_syntax_choice_previews_persists_per_theme_and_returns_to_auto() {
+        let mut fixture = GoldenApp::new();
+        wait_for_highlighter(&mut fixture);
+        fixture.app.open_theme_selector();
+        select_theme(&mut fixture, "gruvbox-light");
+        assert_eq!(fixture.app.syntax_theme_label("gruvbox-light"), "Auto (InspiredGitHub)");
+        fixture.app.theme_selector_cycle_syntax(true);
+        fixture.app.theme_selector_cycle_syntax(true);
+        assert_eq!(active_syntax(&fixture), "Solarized (dark)");
+        assert_eq!(fixture.app.syntax_theme_label("gruvbox-light"), "Solarized (dark)");
+        fixture.app.cancel_theme_selection();
+        assert!(fixture.app.state.config.syntax_themes.is_empty());
+        assert_eq!(active_syntax(&fixture), "base16-eighties.dark");
+
+        fixture.app.open_theme_selector();
+        select_theme(&mut fixture, "gruvbox-light");
+        fixture.app.theme_selector_cycle_syntax(false);
+        assert_eq!(active_syntax(&fixture), "base16-ocean.light");
+        fixture.app.confirm_theme_selection();
+        assert_eq!(fixture.app.state.config.syntax_themes.get("gruvbox-light").map(String::as_str), Some("base16-ocean.light"));
+        let saved = fs::read_to_string(fixture.root.join("config").join("config.toml")).unwrap();
+        assert!(saved.contains("[syntax_themes]") && saved.contains("gruvbox-light = \"base16-ocean.light\""), "{saved}");
+
+        fixture.app.open_theme_selector();
+        select_theme(&mut fixture, "dracula");
+        assert_eq!(active_syntax(&fixture), "base16-eighties.dark");
+        select_theme(&mut fixture, "gruvbox-light");
+        assert_eq!(active_syntax(&fixture), "base16-ocean.light");
+        fixture.app.theme_selector_cycle_syntax(true);
+        assert_eq!(active_syntax(&fixture), "InspiredGitHub");
+        assert_eq!(fixture.app.syntax_theme_label("gruvbox-light"), "Auto (InspiredGitHub)");
+        fixture.app.confirm_theme_selection();
+        assert!(fixture.app.state.config.syntax_themes.is_empty());
+    }
+
+    #[test]
+    fn theme_selector_renders_the_syntax_row_and_hint() {
+        let mut fixture = GoldenApp::new();
+        wait_for_highlighter(&mut fixture);
+        fixture.app.open_theme_selector();
+        select_theme(&mut fixture, "gruvbox-light");
+        let buffer = draw(&mut fixture, 100, 30);
+        let screen: Vec<String> = (0..30).map(|y| (0..100).map(|x| buffer[(x, y)].symbol().to_string()).collect()).collect();
+        assert!(screen.iter().any(|row| row.contains("Syntax  Auto (InspiredGitHub)")), "{}", screen.join("\n"));
+        assert!(screen.iter().any(|row| row.contains("s syntax")), "{}", screen.join("\n"));
+    }
+
+    #[test]
+    fn unknown_syntax_theme_is_reported_instead_of_silently_replaced() {
+        let mut fixture = GoldenApp::new();
+        wait_for_highlighter(&mut fixture);
+        assert!(fixture.app.state.toast.is_none());
+        fixture.app.state.config.syntax_theme = "base16-ocean.drak".to_string();
+        fixture.app.open_theme_selector();
+        fixture.app.confirm_theme_selection();
+        let toast = fixture.app.state.toast.as_ref().expect("unknown syntax theme toast");
+        assert!(toast.message.contains("base16-ocean.drak"), "{}", toast.message);
     }
 
     #[test]

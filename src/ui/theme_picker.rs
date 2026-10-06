@@ -10,7 +10,7 @@ use crate::app::ThemePicker;
 use crate::config::{StyleMode, Theme};
 
 const MAX_VISIBLE: usize = 12;
-const MIN_WIDTH: u16 = 48;
+const MIN_WIDTH: u16 = 58;
 const MAX_WIDTH: u16 = 60;
 const TAG_WIDTH: usize = 8; // width of the widest tag ("official")
 
@@ -20,6 +20,7 @@ const TAG_WIDTH: usize = 8; // width of the widest tag ("official")
 pub struct ThemePickerView<'a> {
     pub theme: &'a Theme,
     pub picker: &'a ThemePicker,
+    pub syntax_label: &'a str,
 }
 
 pub fn render_theme_picker(f: &mut Frame, view: ThemePickerView<'_>) -> Option<usize> {
@@ -41,14 +42,14 @@ pub fn render_theme_picker(f: &mut Frame, view: ThemePickerView<'_>) -> Option<u
     let longest = picker.themes.iter().map(|t| t.name.chars().count()).max().unwrap_or(0) as u16;
     let content_width = longest + 2 + 1 + TAG_WIDTH as u16 + 2;
     let popup_width = content_width.clamp(MIN_WIDTH, MAX_WIDTH).min(area.width.saturating_sub(4));
-    let popup_height = (visible as u16 + 6).min(area.height.saturating_sub(4));
+    let popup_height = (visible as u16 + 7).min(area.height.saturating_sub(4));
     let popup_x = (area.width.saturating_sub(popup_width)) / 2;
     let popup_y = (area.height.saturating_sub(popup_height)) / 2;
     let popup_area = Rect::new(popup_x, popup_y, popup_width, popup_height);
     f.render_widget(Clear, popup_area);
     let block = Block::default()
         .title(Line::from(Span::styled(" Themes ", Style::default().fg(theme.dialog.title).add_modifier(Modifier::BOLD))))
-        .title_bottom(Line::from(Span::styled(" ↑↓ theme · ←→ style · ⏎ apply · esc cancel ", Style::default().fg(theme.muted))).right_aligned())
+        .title_bottom(Line::from(Span::styled(" ↑↓ theme · ←→ style · s syntax · ⏎ apply · esc cancel ", Style::default().fg(theme.muted))).right_aligned())
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.dialog.border))
         .style(Style::default().bg(theme.dialog.background));
@@ -57,6 +58,7 @@ pub fn render_theme_picker(f: &mut Frame, view: ThemePickerView<'_>) -> Option<u
     let mut lines: Vec<Line> = Vec::with_capacity(visible + 4);
     lines.push(Line::from("")); // top padding
     lines.push(style_row(theme, picker.style));
+    lines.push(syntax_row(theme, view.syntax_label));
     lines.push(Line::from(Span::styled("─".repeat(inner_w), Style::default().fg(theme.border))));
     for (row, entry) in picker.themes.iter().enumerate().skip(scroll).take(visible) {
         let is_sel = row == selected;
@@ -77,7 +79,7 @@ pub fn render_theme_picker(f: &mut Frame, view: ThemePickerView<'_>) -> Option<u
 }
 
 fn style_row(theme: &Theme, current: StyleMode) -> Line<'static> {
-    let mut spans = vec![Span::styled("  Style ", Style::default().fg(theme.dialog.text))];
+    let mut spans = vec![Span::styled("  Style  ", Style::default().fg(theme.dialog.text))];
     for mode in [StyleMode::Outlined, StyleMode::Flat] {
         let active = mode == current;
         let label = format!(" {} ", mode.display_name());
@@ -86,4 +88,9 @@ fn style_row(theme: &Theme, current: StyleMode) -> Line<'static> {
         spans.push(Span::raw(" "));
     }
     Line::from(spans)
+}
+
+fn syntax_row(theme: &Theme, label: &str) -> Line<'static> {
+    let chip = Style::default().fg(theme.background).bg(theme.dialog.title).add_modifier(Modifier::BOLD);
+    Line::from(vec![Span::styled("  Syntax ", Style::default().fg(theme.dialog.text)), Span::styled(format!(" {label} "), chip)])
 }

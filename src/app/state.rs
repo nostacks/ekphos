@@ -234,7 +234,7 @@ impl AppBuilder {
         let sidebar_collapsed = config.sidebar_collapsed;
         let outline_collapsed = config.outline_collapsed;
         let frontmatter_hidden = config.frontmatter_hidden;
-        let syntax_theme = config.syntax_theme.clone();
+        let syntax_theme = theme.syntax_theme_request(config.syntax_themes.get(&config.theme).map(String::as_str), &config.syntax_theme);
         let (_, index_receiver) = mpsc::channel();
         let mut app = App {
             vault: VaultState::new(crate::vault::Vault::default(), list_state),

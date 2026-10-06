@@ -1,4 +1,4 @@
-use crate::highlight::Highlighter;
+use crate::highlight::{Highlighter, SyntaxThemeRequest};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::thread::JoinHandle;
 
@@ -19,14 +19,14 @@ enum SyntaxServiceState {
 
 pub struct SyntaxService {
     state: SyntaxServiceState,
-    theme_name: String,
+    request: SyntaxThemeRequest,
     receiver: Option<Receiver<Result<Highlighter, String>>>,
     worker: Option<JoinHandle<()>>,
 }
 
 impl SyntaxService {
-    pub fn new(theme_name: String) -> Self {
-        Self { state: SyntaxServiceState::Unloaded, theme_name, receiver: None, worker: None }
+    pub fn new(request: SyntaxThemeRequest) -> Self {
+        Self { state: SyntaxServiceState::Unloaded, request, receiver: None, worker: None }
     }
 
     pub fn status(&self) -> SyntaxServiceStatus {
@@ -43,9 +43,8 @@ impl SyntaxService {
             return;
         }
         let (sender, receiver) = mpsc::sync_channel(1);
-        let theme_name = self.theme_name.clone();
         match std::thread::Builder::new().name("syntax-loader".into()).spawn(move || {
-            let loaded = std::panic::catch_unwind(|| Highlighter::new(&theme_name)).map_err(|_| "syntax definition loader panicked".to_string());
+            let loaded = std::panic::catch_unwind(Highlighter::default).map_err(|_| "syntax definition loader panicked".to_string());
             let _ = sender.send(loaded);
         }) {
             Ok(worker) => {
@@ -79,7 +78,7 @@ impl SyntaxService {
         }
         self.state = match result {
             Ok(mut highlighter) => {
-                highlighter.set_theme(&self.theme_name);
+                highlighter.apply_theme(&self.request);
                 SyntaxServiceState::Ready(Box::new(highlighter))
             }
             Err(error) => SyntaxServiceState::Failed(error),
@@ -94,15 +93,27 @@ impl SyntaxService {
         }
     }
 
-    pub fn configure_theme(&mut self, theme_name: &str) {
-        if self.theme_name == theme_name {
-            return;
+    pub fn configure_theme(&mut self, request: SyntaxThemeRequest) -> bool {
+        if self.request == request {
+            return false;
         }
-        self.theme_name.clear();
-        self.theme_name.push_str(theme_name);
+        self.request = request;
         if let SyntaxServiceState::Ready(highlighter) = &mut self.state {
-            highlighter.as_mut().set_theme(theme_name);
+            highlighter.as_mut().apply_theme(&self.request);
         }
+        true
+    }
+
+    pub fn active_theme(&self) -> Option<&str> {
+        self.highlighter().map(Highlighter::theme_name)
+    }
+
+    pub fn unknown_theme(&self) -> Option<&str> {
+        let requested = match &self.request {
+            SyntaxThemeRequest::Named(name) | SyntaxThemeRequest::Auto { preferred: Some(name), .. } => name,
+            SyntaxThemeRequest::Auto { preferred: None, .. } => return None,
+        };
+        self.highlighter().filter(|highlighter| !highlighter.has_theme(requested)).map(|_| requested.as_str())
     }
 
     pub fn clear_results(&self) {
@@ -152,7 +163,7 @@ mod tests {
 
     #[test]
     fn state_machine_is_lazy_and_reaches_ready() {
-        let mut service = SyntaxService::new("base16-ocean.dark".to_string());
+        let mut service = SyntaxService::new(SyntaxThemeRequest::default());
         assert_eq!(service.status(), SyntaxServiceStatus::Unloaded);
         assert_eq!(service.definition_bytes(), 0);
         service.ensure_loaded();
@@ -168,7 +179,7 @@ mod tests {
 
     #[test]
     fn document_eviction_clears_results_but_keeps_definitions() {
-        let mut service = SyntaxService::new("base16-ocean.dark".to_string());
+        let mut service = SyntaxService::new(SyntaxThemeRequest::default());
         service.state = SyntaxServiceState::Ready(Box::default());
         service.highlighter().unwrap().highlight_block("let value = 1;", "rust");
         assert!(service.result_cache_bytes() > 0);

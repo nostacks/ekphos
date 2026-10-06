@@ -62,6 +62,12 @@ pub(super) fn handle_theme_selector_dialog(app: &mut App, key: crossterm::event:
         KeyCode::Left | KeyCode::Right | KeyCode::Tab | KeyCode::Char('h') | KeyCode::Char('l') => {
             app.theme_selector_toggle_style();
         }
+        KeyCode::Char('s') => {
+            app.theme_selector_cycle_syntax(true);
+        }
+        KeyCode::Char('S') => {
+            app.theme_selector_cycle_syntax(false);
+        }
         _ => {}
     }
 }
