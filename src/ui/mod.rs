@@ -56,7 +56,7 @@ pub use status_bar::render_status_bar;
 
 pub fn render(f: &mut Frame, app: &mut App) {
     if !app.state.config.transparent_bg {
-        let bg = Block::default().style(Style::default().bg(app.state.theme.background));
+        let bg = Block::default().style(Style::default().fg(app.state.theme.foreground).bg(app.state.theme.background));
         bg.render(f.area(), f.buffer_mut());
     }
     let vertical_chunks = Layout::default()
@@ -172,6 +172,7 @@ mod tests {
     use crate::syntax_service::SyntaxServiceStatus;
     use image::{Rgba, RgbaImage};
     use ratatui::layout::Rect;
+    use ratatui::style::Color;
     use ratatui::{backend::TestBackend, Terminal};
     use ratatui_image::picker::Picker;
     use std::fs;
@@ -261,6 +262,29 @@ mod tests {
         let mut fixture = GoldenApp::new();
         fixture.app.enter_edit_mode();
         assert_eq!(fixture.hash(80, 24), 15_822_003_958_405_314_542);
+    }
+
+    fn edit_view_prose_foreground(fixture: &mut GoldenApp) -> Color {
+        let buffer = draw(fixture, 80, 24);
+        for y in 0..24 {
+            let cells: Vec<_> = (0..80).map(|x| buffer[(x, y)].symbol()).collect();
+            if let Some(x) = cells.windows(5).position(|w| w.concat() == "prose") {
+                return buffer[(x as u16, y)].fg;
+            }
+        }
+        panic!("prose not found in the edit view");
+    }
+
+    #[test]
+    fn edit_view_prose_uses_the_theme_foreground_on_the_theme_background() {
+        let mut fixture = GoldenApp::with_content("plain prose\n");
+        fixture.app.enter_edit_mode();
+        let theme_foreground = fixture.app.state.theme.foreground;
+        assert_eq!(edit_view_prose_foreground(&mut fixture), theme_foreground);
+
+        // A transparent background is the terminal's, so its foreground has to stay too.
+        fixture.app.state.config.transparent_bg = true;
+        assert_eq!(edit_view_prose_foreground(&mut fixture), Color::Reset);
     }
 
     #[test]
